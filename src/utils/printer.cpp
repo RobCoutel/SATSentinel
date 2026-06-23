@@ -1,0 +1,136 @@
+/*
+ * This file is part of the source code of the software program
+ * NapSAT. It is protected by applicable copyright laws.
+ *
+ * This source code is protected by the terms of the MIT License.
+ */
+/**
+ * @file src/utils/printer.cpp
+ * @author Robin Coutelier
+ * @brief This file is part of the NapSAT solver. It implements functions for string manipulation and pretty printing.
+ */
+#include "printer.hpp"
+
+#include <iostream>
+#include <cassert>
+
+using namespace std;
+
+#ifdef __unix__
+#include <sys/ioctl.h> //ioctl() and TIOCGWINSZ
+#include <unistd.h> // for STDOUT_FILENO
+#endif
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
+static unsigned TERMINAL_WIDTH = 100;
+
+const char ESC_LOCK_START = "🔒"[0];
+const char ESC_LOCK_END = "🔒"[4];
+
+void update_terminal_width() {
+#ifdef __unix__
+  struct winsize size;
+  ioctl(STDOUT_FILENO, TIOCGWINSZ, &size);
+  short int width = size.ws_col;
+  if (width > 0)
+    TERMINAL_WIDTH = size.ws_col;
+#endif
+#ifdef _WIN32
+  CONSOLE_SCREEN_BUFFER_INFO csbi;
+    GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
+    TERMINAL_WIDTH = csbi.srWindow.Right - csbi.srWindow.Left + 1;
+#endif
+}
+
+unsigned get_terminal_width()
+{
+  return TERMINAL_WIDTH;
+}
+
+unsigned string_length_escaped(string const str)
+{
+  unsigned n_escaped = 0;
+  bool escaping = false;
+  for (size_t i = 0; i < str.length(); i++) {
+    char c = str[i];
+    escaping |= c == ESC_CHAR;
+    n_escaped += escaping;
+    escaping &= c != ESC_END;
+
+    if (c == ESC_LOCK_START && str.substr(i, 4) == "🔒") {
+      n_escaped += 2; // the lock emoji is 4 bytes in UTF-8 but we want to count it as 1 character
+    }
+
+
+  }
+  return str.length() - n_escaped;
+}
+
+static inline unsigned log10(int n)
+{
+  assert(n > 0);
+  unsigned digits = 0;
+  while (n > 0) {
+    n /= 10;
+    digits++;
+  }
+  return digits;
+}
+
+string pad(unsigned n, unsigned max_int)
+{
+  n = max(n, 1u);
+  int max_digits = log10(max_int);
+  int digits = log10(n);
+  string s = "";
+  for (int i = digits; i < max_digits; i++)
+    s += " ";
+  return s;
+}
+
+string pretty_integer(long long n)
+{
+  string s = "";
+  if (n == 0) return "0";
+  while (n > 0) {
+    s = to_string(n % 1000) + "," + s;
+    n /= 1000;
+    if (s.size() % 4 != 0 && n > 0)
+      s = string(4 - s.size() % 4, '0') + s;
+  }
+  if (s.size() > 0)
+    s = s.substr(0, s.size() - 1);
+  return s;
+}
+
+string pretty_float(double f, unsigned n)
+{
+  string s = pretty_integer((long long)f);
+  if (n)
+    s += ".";
+  while (n--) {
+    f *= 10;
+    s += to_string((long long)f % 10);
+  }
+  return s;
+}
+
+string pretty_time(chrono::microseconds time)
+{
+  string str = "";
+  const long long ms = time.count() / 1000;
+  const long long hours = ms / 3600000;
+  const long long minutes = (ms % 3600000) / 60000;
+  const long long seconds = (ms % 60000) / 1000;
+  const long long microseconds = ms % 1000;
+  if (hours > 0)
+    str += to_string(hours) + "h ";
+  if (minutes > 0)
+    str += to_string(minutes) + "m ";
+  if (seconds > 0)
+    str += to_string(seconds) + "s ";
+  str += to_string(microseconds) + "ms";
+  return str;
+}
