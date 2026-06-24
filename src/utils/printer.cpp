@@ -24,10 +24,13 @@ using namespace std;
 #include <windows.h>
 #endif
 
+namespace sentinel
+{
+
 static unsigned TERMINAL_WIDTH = 100;
 
 const char ESC_LOCK_START = "🔒"[0];
-const char ESC_LOCK_END = "🔒"[4];
+const char ESC_INFINITY_START = "∞"[0];
 
 void update_terminal_width() {
 #ifdef __unix__
@@ -61,6 +64,9 @@ unsigned string_length_escaped(string const str)
 
     if (c == ESC_LOCK_START && str.substr(i, 4) == "🔒") {
       n_escaped += 2; // the lock emoji is 4 bytes in UTF-8 but we want to count it as 1 character
+    }
+    if (c == ESC_INFINITY_START && str.substr(i, 3) == "∞") {
+      n_escaped += 2; // the infinity emoji is 3 bytes in UTF-8 but we want to count it as 1 character
     }
 
 
@@ -133,4 +139,6 @@ string pretty_time(chrono::microseconds time)
     str += to_string(seconds) + "s ";
   str += to_string(microseconds) + "ms";
   return str;
+}
+
 }

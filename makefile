@@ -32,6 +32,14 @@ CFLAGS ?= $(INC_FLAGS) -MMD -MP -fPIC -std=c++17 -Wall --pedantic
 REL_FLAGS ?= -O3 -DNDEBUG
 DBG_FLAGS ?= -O0 -g -g3 -gdwarf-2 -ftrapv
 
+BUILD_MODE ?= release
+
+ifeq ($(BUILD_MODE),debug)
+  REL_FLAGS := $(DBG_FLAGS)
+else
+  REL_FLAGS := $(REL_FLAGS)
+endif
+
 # c source
 $(BUILD_DIR)/%.o: %.cpp $(HEAD)
 	$(MKDIR_P) $(dir $@)

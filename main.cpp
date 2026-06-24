@@ -2,7 +2,7 @@
 
 #include "src/Sentinel-commands.hpp"
 
-using namespace sentinel::sat;
+using namespace sentinel;
 
 static Tclause clause_number = 0;
 
@@ -136,7 +136,7 @@ void configure_command_parser(SATSentinel* sentinel, CommandParser& parser)
 int main(int argc, char* argv[])
 {
 
-  SATSentinel* sentinel = sentinel::sat::create_sentinel(sentinel::sat::SentinelOptions{});
+  SATSentinel* sentinel = sentinel::create_sentinel(sentinel::SentinelOptions{});
 
   CommandParser parser;
   configure_command_parser(sentinel, parser);

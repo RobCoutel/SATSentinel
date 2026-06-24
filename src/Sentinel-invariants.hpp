@@ -7,7 +7,7 @@
 #include <string>
 #include <functional>
 
-namespace sentinel::sat
+namespace sentinel
 {
 class SentinelState;
 

@@ -1,6 +1,6 @@
 #pragma once
 
-namespace sentinel::sat
+namespace sentinel
 {
   class SentinelContext
   {

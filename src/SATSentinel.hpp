@@ -10,7 +10,7 @@
 #include <vector>
 #include <string>
 
-namespace sentinel::sat
+namespace sentinel
 {
 
   namespace notif {
@@ -50,6 +50,8 @@ namespace sentinel::sat
     bool get_external_commands();
 
     bool get_navigation_commands();
+
+    bool check_invariants() const;
 
   private:
     SentinelOptions* _options;

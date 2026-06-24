@@ -3,7 +3,7 @@
 #include "Sentinel-types.hpp"
 #include "Sentinel-options.hpp"
 
-namespace sentinel::sat
+namespace sentinel
 {
   class SATSentinel;
 
@@ -18,25 +18,25 @@ namespace sentinel::sat
   bool delete_clause(SATSentinel* sentinel, Tclause clause);
   bool shrink_clause(SATSentinel* sentinel, Tclause clause, Tlit removed_lit);
 
-  bool assign  (SATSentinel* sentinel, Tlit lit, Tclause reason = CLAUSE_UNDEF);
-  bool unassign(SATSentinel* sentinel, Tlit lit);
+  bool assign  (SATSentinel* sentinel, Tlit blocker, Tclause reason = CLAUSE_UNDEF);
+  bool unassign(SATSentinel* sentinel, Tlit blocker);
 
-  bool propagate  (SATSentinel* sentinel, Tlit lit);
-  bool unpropagate(SATSentinel* sentinel, Tlit lit);
+  bool propagate  (SATSentinel* sentinel, Tlit blocker);
+  bool unpropagate(SATSentinel* sentinel, Tlit blocker);
 
-  bool update_level(SATSentinel* sentinel, Tlit lit, Tlevel level);
-  bool update_reason(SATSentinel* sentinel, Tlit lit, Tclause reason);
+  bool update_level(SATSentinel* sentinel, Tlit blocker, Tlevel level);
+  bool update_reason(SATSentinel* sentinel, Tlit blocker, Tclause reason);
 
-  bool watch(SATSentinel* sentinel, Tclause clause, Tlit lit);
-  bool unwatch(SATSentinel* sentinel, Tclause clause, Tlit lit);
-  bool block(SATSentinel* sentinel, Tclause clause, Tlit lit, Tlit watch = LIT_UNDEF);
+  bool watch(SATSentinel* sentinel, Tclause clause, Tlit blocker);
+  bool unwatch(SATSentinel* sentinel, Tclause clause, Tlit blocker);
+  bool block(SATSentinel* sentinel, Tclause clause, Tlit blocker, Tlit watch = LIT_UNDEF);
 
   bool check_invariants(SATSentinel* sentinel);
   bool checkpoint(SATSentinel* sentinel);
-  bool message(SATSentinel* sentinel, std::string message);
+  bool message(SATSentinel* sentinel, std::string message, unsigned level = 0);
 
   bool save_execution(SATSentinel* sentinel, std::string filename);
   bool load_execution(SATSentinel* sentinel, std::string filename);
 
-  void set_command_parser(SATSentinel* sentinel, Tparser parser);
+  void set_command_parser(SATSentinel* sentinel, Tparser* parser);
 }

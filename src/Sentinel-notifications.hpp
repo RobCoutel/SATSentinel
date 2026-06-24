@@ -7,7 +7,7 @@
 #include <string>
 #include <cassert>
 
-namespace sentinel::sat
+namespace sentinel
 {
   class SentinelMarker;
 }
@@ -23,13 +23,13 @@ namespace sentinel::sat
  * - A literal l is propagated when it has been checked that it does not create a conflict and the literals implied by l have been added to the assignment.
  * - A literal is a decision literal if it is not implied by the current assignment but does not create a conflict when it is added to the assignment.
  */
-namespace sentinel::sat::notif
+namespace sentinel::notif
 {
   const unsigned MAX_UNSIGNED = 0xFFFFFFFF;
 
   enum ENotifType
   {
-    MARKER,
+    MESSAGE,
     CHECK_INVARIANTS,
 
     VARIABLE_NEW,
@@ -100,34 +100,6 @@ namespace sentinel::sat::notif
   };
 
   /**
-   * @brief Notification that a marker was reached.
-   * @details A marker is a moment during at which the solver will stop and wait for the user to navigate through the history.
-   * @details Markers do not do anything in particular but are used as a logging tool by the display.
-   */
-  class marker : public notification
-  {
-  private:
-    /**
-     * @brief Additional information about the marker.
-     */
-    std::string description;
-
-  public:
-    static const unsigned DEFAULT_LEVEL = 0;
-    static const ENotifType NTYPE = MARKER;
-
-    unsigned get_event_level(SentinelMarker* marker) const noexcept override { return DEFAULT_LEVEL; }
-    ENotifType get_type() const noexcept override { return NTYPE; }
-    const std::string get_message() const noexcept override { return "Marker : " + description; }
-
-    explicit marker() = default;
-    explicit marker(std::string description) : description(std::move(description)) {}
-
-    bool apply(SentinelState* state) override { return true; }
-    bool rollback(SentinelState* state) override { return true; }
-  };
-
-  /**
    * @brief Notification that a new variable was added.
    */
   class new_variable : public notification
@@ -172,7 +144,7 @@ namespace sentinel::sat::notif
 
     unsigned get_event_level(SentinelMarker* marker) const noexcept override;
     ENotifType get_type() const noexcept override { return NTYPE; }
-    const std::string get_message() const noexcept override { return "Decision literal : " + lit.to_string(); }
+    const std::string get_message() const noexcept override { return "Assigned literal : " + lit.to_string() + " with reason " + reason.to_string(); }
 
     explicit assignment(Tlit lit, Tclause reason) : lit(lit), reason(reason) {}
 
@@ -510,24 +482,6 @@ namespace sentinel::sat::notif
     bool rollback(SentinelState* state) override;
   };
 
-  class check_invariants : public notification
-  {
-  public:
-    static const unsigned DEFAULT_LEVEL = 10;
-    static const ENotifType NTYPE = CHECK_INVARIANTS;
-    bool failed = false;
-    bool checked = false;
-
-    unsigned get_event_level(SentinelMarker* marker) const noexcept override;
-    ENotifType get_type() const noexcept override { return NTYPE; }
-    const std::string get_message() const noexcept override { return "Check invariants"; }
-
-    explicit check_invariants() = default;
-
-    bool apply(SentinelState* state) override;
-    bool rollback(SentinelState* state) override;
-  };
-
   // lock for assumptions
   class lock_assumption : public notification
   {
@@ -567,13 +521,13 @@ namespace sentinel::sat::notif
   class message : public notification
   {  private:
     std::string m;
+    const unsigned notif_lvl;
   public:
-    static const unsigned DEFAULT_LEVEL = 0;
-    static const ENotifType NTYPE = MARKER;
-    unsigned get_event_level(SentinelMarker* marker) const noexcept override { return DEFAULT_LEVEL; }
+    static const ENotifType NTYPE = MESSAGE;
+    unsigned get_event_level(SentinelMarker* marker) const noexcept override { return notif_lvl; }
     ENotifType get_type() const noexcept override { return NTYPE; }
     const std::string get_message() const noexcept override { return "Message : " + m; }
-    explicit message(std::string message) : m(std::move(message)) {}
+    explicit message(std::string message, unsigned lvl = 0) : m(std::move(message)), notif_lvl(lvl) {}
     bool apply(SentinelState* state) override { return true; }
     bool rollback(SentinelState* state) override { return true; }
    };

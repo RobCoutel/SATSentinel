@@ -4,7 +4,7 @@
 
 #include <cassert>
 
-namespace sentinel::sat
+namespace sentinel
 {
 
 SentinelState::SentinelState(SentinelOptions* options)
@@ -205,21 +205,38 @@ std::string SentinelState::to_string(Tclause cl) const
 
   Tlit c1 = c.watches.size() > 0 ? c.watches[0].first : Tlit(0);
   Tlit c2 = c.watches.size() > 1 ? c.watches[1].first : Tlit(0);
+  Tlit b1 = c.watches.size() > 0 ? c.watches[0].second : Tlit(0);
+  Tlit b2 = c.watches.size() > 1 ? c.watches[1].second : Tlit(0);
 
   for (unsigned i = 0; i < c.literals.size() - c.n_deleted_literals; i++) {
     Tlit lit = c.literals[i];
     if (lit_true(lit)) {
       if (lit == c1 || lit == c2)
         satisfied_lits += "w";
-      satisfied_lits += to_string(lit) + " ";
+      satisfied_lits += to_string(lit);
+      if (lit == c1 && b1.value != 0)
+        satisfied_lits += "(" + to_string(b1) + ")";
+      else if (lit == c2 && b2.value != 0)
+        satisfied_lits += "(" + to_string(b2) + ")";
+      satisfied_lits += " ";
     } else if (lit_undef(lit)) {
       if (lit == c1 || lit == c2)
         undefined_lits += "w";
-      undefined_lits += to_string(lit) + " ";
+      undefined_lits += to_string(lit);
+      if (lit == c1 && b1.value != 0)
+        undefined_lits += "(" + to_string(b1) + ")";
+      else if (lit == c2 && b2.value != 0)
+        undefined_lits += "(" + to_string(b2) + ")";
+      undefined_lits += " ";
     } else {
       if (lit == c1 || lit == c2)
         falsified_lits += "w";
-      falsified_lits += to_string(lit) + " ";
+      falsified_lits += to_string(lit);
+      if (lit == c1 && b1.value != 0)
+        falsified_lits += "(" + to_string(b1) + ")";
+      else if (lit == c2 && b2.value != 0)
+        falsified_lits += "(" + to_string(b2) + ")";
+      falsified_lits += " ";
     }
   }
   s += satisfied_lits + undefined_lits + falsified_lits;

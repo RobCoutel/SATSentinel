@@ -15,6 +15,9 @@
 #include <string>
 #include <chrono>
 
+namespace sentinel
+{
+
 const char ESC_CHAR = '\033'; // the decimal code for escape character is 27
 const char ESC_END = 'm';
 
@@ -76,3 +79,4 @@ const std::string INFO_HEAD = "\033[34mINFO: \033[0m";
 #define LOG_ERROR(msg)   do { std::cerr << ERROR_HEAD << msg << std::endl; } while(0)
 #define LOG_WARNING(msg) do { if(!napsat::env::get_suppress_warning()) std::cout << WARNING_HEAD << msg << std::endl; } while(0)
 #define LOG_INFO(msg)    do { if(!napsat::env::get_suppress_info()) std::cout << INFO_HEAD << msg << std::endl; } while(0)
+}

@@ -5,7 +5,7 @@
 
 #include <cassert>
 
-namespace sentinel::sat
+namespace sentinel
 {
   SATSentinel* create_sentinel(const SentinelOptions& options)
   {
@@ -94,17 +94,19 @@ namespace sentinel::sat
 
   bool check_invariants(SATSentinel* sentinel)
   {
-    return sentinel->notify(new notif::check_invariants());
+    assert(sentinel);
+    return sentinel->check_invariants();
   }
 
   bool checkpoint(SATSentinel* sentinel)
   {
+    sentinel->get_navigation_commands();
     return sentinel->get_external_commands();
   }
 
-  bool message(SATSentinel* sentinel, std::string message)
+  bool message(SATSentinel* sentinel, std::string message, unsigned level)
   {
-    return sentinel->notify(new notif::message(message));
+    return sentinel->notify(new notif::message(message, level));
   }
 
   bool save_execution(SATSentinel* sentinel, std::string filename)
@@ -121,9 +123,9 @@ namespace sentinel::sat
     return true;
   }
 
-  void set_command_parser(SATSentinel* sentinel, Tparser parser)
+  void set_command_parser(SATSentinel* sentinel, Tparser* parser)
   {
-    sentinel->set_command_parser(&parser);
+    sentinel->set_command_parser(parser);
   }
 
 }

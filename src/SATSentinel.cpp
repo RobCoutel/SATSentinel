@@ -9,7 +9,7 @@
 #include <vector>
 #include <string>
 
-namespace sentinel::sat
+namespace sentinel
 {
 
 SATSentinel::SATSentinel(SentinelOptions* options)
@@ -22,27 +22,27 @@ SATSentinel::SATSentinel(SentinelOptions* options)
   markers = new SentinelMarker();
   state = new SentinelState(options);
   display_level = _options->default_display_level;
+
+  register_commands();
 }
 
 SATSentinel::~SATSentinel()
 {
   delete markers;
   delete state; // this will delete the options
+  if (external_parser) {
+    delete external_parser;
+  }
 }
 
 bool SATSentinel::notify(notif::notification* notif)
 {
   notifications.push_back(notif);
-
-
   return next();
 }
 
 bool SATSentinel::next()
 {
-  if (current_notification_index >= notifications.size()) {
-    return true;
-  }
   bool success = true;
   bool display_state = false;
   while (current_notification_index < notifications.size()) {
@@ -55,13 +55,16 @@ bool SATSentinel::next()
     if (!success) {
       failed = true;
       std::cerr << "Notification failed: " << notif->get_message() << std::endl;
+      if (_options->crash_on_error) {
+        std::cerr << "Crashing due to error..." << std::endl;
+        abort();
+      }
     }
     display_state = true;
     break;
   }
   if (display_state) {
-    print_state();
-    get_external_commands();
+    get_navigation_commands();
   }
   return success;
 }
@@ -87,18 +90,24 @@ bool SATSentinel::back()
     break;
   }
   if (display_state) {
-    print_state();
     get_external_commands();
   }
   return success;
 }
 
-
+std::string SATSentinel::last_notification_message() const
+{
+  if (current_notification_index == 0) {
+    return "No notifications yet";
+  }
+  notif::notification* notif = notifications[current_notification_index - 1];
+  return notif->get_message();
+}
 
 void SATSentinel::print_state() const
 {
   if (failed) {
-    std::cout << ERROR_HEAD << "Notification failed: " << notifications[current_notification_index]->get_message() << std::endl;
+    std::cout << ERROR_HEAD << "FAILED STATE: " << notifications[current_notification_index-1]->get_message() << std::endl;
   }
   std::cout << "Current state of the solver:" << std::endl;
   print_variables();

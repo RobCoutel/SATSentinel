@@ -15,12 +15,12 @@ do {                                             \
   return false;                                  \
 } while (0)
 
-namespace sentinel::sat
+namespace sentinel
 {
   std::string notif::notification_type_to_string(ENotifType type)
   {
     switch (type) {
-    case MARKER: return "MARKER";
+    case MESSAGE: return "MESSAGE";
     case CHECK_INVARIANTS: return "CHECK_INVARIANTS";
     case VARIABLE_NEW: return "VARIABLE_NEW";
     case CLAUSE_NEW: return "CLAUSE_NEW";
@@ -193,7 +193,7 @@ namespace sentinel::sat
     SOFT_ASSERT(lit.var().value < state->_variables.size());
     SOFT_ASSERT(state->active(lit.var()));
     SOFT_ASSERT(!state->lit_undef(lit));
-    SOFT_ASSERT(!state->propagated(lit.var()) == false);
+    SOFT_ASSERT(!state->propagated(lit));
 
     state->propagated(lit.var()) = true;
     return true;
@@ -576,32 +576,7 @@ namespace sentinel::sat
     return true;
   }
 
-  /** CHECK_INVARIANT **/
-  unsigned notif::check_invariants::get_event_level(SentinelMarker* marker) const noexcept
-  {
-     if(checked && failed)
-        return 0;
-     return DEFAULT_LEVEL;
-  }
-  bool notif::check_invariants::apply(SentinelState* state)
-  {
-    if (checked) {
-      return !failed;
-    }
-    checked = true;
-    assert(state);
-    std::string err_msg;
-    failed = !state->check_invariants(err_msg);
-    if (failed) {
-      std::cerr << "Invariant check failed: \n" << err_msg << std::endl;
-    }
-    return !failed;
-  }
-  bool notif::check_invariants::rollback(SentinelState* state)
-  {
-    return true;
-  }
-
+  /** LOCK ASSUMPTION **/
   unsigned notif::lock_assumption::get_event_level(SentinelMarker* marker) const noexcept
   {
     assert(marker);

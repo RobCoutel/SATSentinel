@@ -12,7 +12,7 @@
 #include <execinfo.h>
 #include <unistd.h>
 
-namespace sentinel::sat
+namespace sentinel
 {
 bool SATSentinel::is_real_time() const
 {
@@ -33,6 +33,8 @@ bool SATSentinel::get_external_commands()
   }
   bool success = false;
   print_state();
+  std::cout << "Last notification: " << last_notification_message() << std::endl;
+  std::cout << "USER COMMANDS\n";
   do {
     std::cout << "Enter a command: ";
     std::getline(std::cin, input);
@@ -44,23 +46,29 @@ bool SATSentinel::get_external_commands()
 bool SATSentinel::get_navigation_commands()
 {
   std::string input;
-  bool success = false;
   print_state();
-  do {
-    std::cout << "Enter a navigation command (\"help\" for a list of commands): ";
-    std::getline(std::cin, input);
-    success = navigation_commands.parse(input);
-  } while (!success);
+  std::cout << "Notification " << current_notification_index << ": " << last_notification_message() << std::endl;
+  std::cout << "NAVIGATION COMMANDS\n";
+  navigation_commands.get_command();
   return true;
 }
 
+bool SATSentinel::check_invariants() const
+{
+  std::string err_msg;
+  bool success = state->check_invariants(err_msg);
+  if (!success) {
+    std::cerr << "Invariant check failed:\n" << err_msg << std::endl;
+  }
+  return success;
+}
 
-void sentinel::sat::SATSentinel::register_commands() {
+
+void sentinel::SATSentinel::register_commands() {
   navigation_commands.add_command(Command(
     "next",
     "Go to the next notification",
     [this](const std::string& args) {
-      next();
       return true;
     }));
   navigation_commands.add_alias("next", "");
@@ -90,7 +98,7 @@ void sentinel::sat::SATSentinel::register_commands() {
     [this](const std::string& args) {
       print_state();
       return true;
-    }));
+    }, false));
   navigation_commands.add_alias("print", "p");
 
   navigation_commands.add_command(CommandInteger(
@@ -103,7 +111,7 @@ void sentinel::sat::SATSentinel::register_commands() {
       }
       display_level = level;
       return true;
-    }));
+    }, false));
 
   navigation_commands.add_command(CommandInteger(
     "mark var",
@@ -116,7 +124,7 @@ void sentinel::sat::SATSentinel::register_commands() {
       }
       markers->mark(tvar);
       return true;
-    }));
+    }, false));
 
   navigation_commands.add_command(CommandInteger(
     "unmark var",
@@ -125,7 +133,7 @@ void sentinel::sat::SATSentinel::register_commands() {
       Tvar tvar(var);
       markers->unmark(tvar);
       return true;
-    }));
+    }, false));
 
   navigation_commands.add_command(CommandInteger(
     "mark clause",
@@ -138,7 +146,7 @@ void sentinel::sat::SATSentinel::register_commands() {
       }
       markers->mark(tcl);
       return true;
-    }));
+    }, false));
 
   navigation_commands.add_command(CommandInteger(
     "unmark clause",
@@ -147,7 +155,7 @@ void sentinel::sat::SATSentinel::register_commands() {
       Tclause tcl(cl);
       markers->unmark(tcl);
       return true;
-    }));
+    }, false));
 
   navigation_commands.add_command(CommandInteger(
     "set breakpoint",
@@ -159,7 +167,7 @@ void sentinel::sat::SATSentinel::register_commands() {
       }
       breakpoints.insert(level);
       return true;
-    }));
+    }, false));
 
   navigation_commands.add_command(CommandInteger(
     "remove breakpoint",
@@ -171,6 +179,6 @@ void sentinel::sat::SATSentinel::register_commands() {
       }
       breakpoints.erase(level);
       return true;
-    }));
+    }, false));
   }
 }

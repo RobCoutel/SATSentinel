@@ -12,8 +12,31 @@
 #include <cassert>
 #include <functional>
 
-namespace sentinel::sat
+namespace sentinel
 {
+
+  /**
+   * @brief Type to denote the value of a variable.
+   * @details The value can be VAR_TRUE, VAR_FALSE or VAR_UNDEF.
+   */
+  typedef struct Tval {
+    unsigned int value;
+
+    Tval(unsigned value) : value(value) {
+
+    }
+    inline bool operator==(const Tval& other) const { return value == other.value; }
+    inline bool operator!=(const Tval& other) const { return value != other.value; }
+    inline std::string to_string() const {
+      switch (value) {
+        case 0: return "FALSE";
+        case 1: return "TRUE";
+        case 2: return "UNDEF";
+        default: return "ERROR";
+      }
+    }
+    inline std::ostream& operator<<(std::ostream& os) const { os << to_string(); return os; }
+  } Tval;
 
   /**
    * @brief Type to denote a variable.
@@ -27,6 +50,7 @@ namespace sentinel::sat
     inline bool operator==(const Tvar& other) const { return value == other.value; }
     inline bool operator!=(const Tvar& other) const { return value != other.value; }
     inline bool operator<(const Tvar& other) const { return value < other.value; }
+    inline bool operator>(const Tvar& other) const { return value > other.value; }
 
     inline std::string to_string() const { return "v" + std::to_string(value); }
     inline std::ostream& operator<<(std::ostream& os) const { os << to_string(); return os; }
@@ -51,28 +75,11 @@ namespace sentinel::sat
     inline bool pol() const { return value & 1; }
     inline std::string to_string() const { return (pol() ? "" : "~") + std::to_string(var().value); }
     inline std::ostream& operator<<(std::ostream& os) const { os << to_string(); return os; }
+
+    inline bool satisfied(Tval val) const { return !(pol() ^ val.value); }
+    inline bool falsified(Tval val) const { return !(pol() ^ val.value ^ 1); }
+    inline bool undefined(Tval val) const { return val.value >> 1; }
   } Tlit;
-
-  /**
-   * @brief Type to denote the value of a variable.
-   * @details The value can be VAR_TRUE, VAR_FALSE or VAR_UNDEF.
-   */
-  typedef struct Tval {
-    unsigned int value;
-
-    Tval(unsigned value) : value(value) {}
-    inline bool operator==(const Tval& other) const { return value == other.value; }
-    inline bool operator!=(const Tval& other) const { return value != other.value; }
-    inline std::string to_string() const {
-      switch (value) {
-        case 0: return "FALSE";
-        case 1: return "TRUE";
-        case 2: return "UNDEF";
-        default: return "ERROR";
-      }
-    }
-    inline std::ostream& operator<<(std::ostream& os) const { os << to_string(); return os; }
-  } Tval;
 
   /**
    * @brief Type to denote a decision level.
@@ -115,7 +122,12 @@ namespace sentinel::sat
     inline bool operator<(const Tclause& other) const { return value < other.value; }
     inline void operator++() { value++; }
     inline void operator++(int) { value++; }
-    inline std::string to_string() const { return std::to_string(value); }
+    inline std::string to_string() const {
+      if (value == 0xFFFFFFFF) return "UNDEF";
+      if (value == 0xFFFFFFFE) return "LAZY";
+      if (value == 0xFFFFFFFD) return "ASSUMPTION";
+      return "C" + std::to_string(value);
+    }
     inline std::ostream& operator<<(std::ostream& os) const { os << "C" << to_string(); return os; }
   } Tclause;
 

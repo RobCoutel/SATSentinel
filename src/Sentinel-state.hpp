@@ -10,7 +10,7 @@
 #include <set>
 #include <functional>
 
-namespace sentinel::sat
+namespace sentinel
 {
 class SentinelState
 {
@@ -22,10 +22,12 @@ public:
 
   inline Tval& value(Tvar var)      { return _variables[var.value].value; }
   inline Tval value(Tvar var) const { return _variables[var.value].value; }
+  inline Tval& value(Tlit lit)      { return value(lit.var()); }
+  inline Tval value(Tlit lit) const { return value(lit.var()); }
 
-  inline bool lit_true(Tlit lit) const  { return !(lit.value ^ value(lit.var()).value); }
-  inline bool lit_false(Tlit lit) const { return !(lit.value ^ value(lit.var()).value ^ 1); }
-  inline bool lit_undef(Tlit lit) const { return value(lit.var()).value >> 1; }
+  inline bool lit_true(Tlit lit) const  { return lit.satisfied(value(lit)); }
+  inline bool lit_false(Tlit lit) const { return lit.falsified(value(lit)); }
+  inline bool lit_undef(Tlit lit) const { return lit.undefined(value(lit)); }
 
 
   inline Tlevel& level(Tvar var)       { return _variables[var.value].level; }

@@ -5,10 +5,11 @@
 
 #include <iostream>
 #include <fstream>
+#include <algorithm>
 
 using namespace std;
 
-namespace sentinel::sat {
+namespace sentinel {
 
 bool SentinelState::check_invariants(string &err_msg, bool check_watch) const
 {
@@ -20,26 +21,7 @@ bool SentinelState::check_invariants(string &err_msg, bool check_watch) const
     }
   }
   if (check_watch) {
-    for (const WatchInvariant& invariant : _watch_invariants) {
-      for (Tclause cl = 0; cl.value < _clauses.size(); cl++) {
-        const clause& c = _clauses[cl];
-        if (!c.active || c.literals.size() - c.n_deleted_literals < 2)
-          continue;
-        Tlit c1 = c.watches[0].first;
-        Tlit c2 = c.watches[0].second;
-        Tlit blocker = LIT_UNDEF;
-        for (Tlit lit : c.literals) {
-          if (lit != c1 && lit != c2 && !lit_false(lit)) {
-            blocker = lit;
-            break;
-          }
-        }
-        if (!invariant.check(c1, c2, blocker)) {
-          success = false;
-          err_msg += ERROR_HEAD + "Invariant violation (" + invariant.name + "): clause " + to_string(cl) + " has watches " + to_string(c1) + " and " + to_string(c2) + " but blocker " + to_string(blocker) + ".\n" + invariant.geterr_msg();
-        }
-      }
-    }
+    success = check_watched_literals(err_msg);
   }
   return success;
 }
@@ -173,6 +155,26 @@ bool SentinelState::check_watched_literals(string &err_msg) const
       continue;
     }
 
+    if (c.watches.size() != 2) {
+      err_msg += error_header + "clause " + to_string(cl) + " has " + std::to_string(c.watches.size()) + " watches literals.\n";
+      err_msg += error_header + "watches literals: ";
+      for (pair<Tlit, Tlit> p : c.watches)
+        err_msg += to_string(p.first) + " ";
+      err_msg += "\n";
+      success = false;
+      continue;
+    }
+
+    // check that both watches are indeed in the clause
+    for (pair<Tlit, Tlit> p : c.watches) {
+      Tlit lit = p.first;
+      if (std::find(c.literals.begin(), c.literals.end(), lit) == c.literals.end()) {
+        err_msg += error_header + "clause " + to_string(cl) + " has a watch literal " + to_string(lit) + " that is not in the clause.\n";
+        success = false;
+      }
+    }
+    if (!success)
+      continue;
 
     for (pair<Tlit, Tlit> p : c.watches) {
       Tlit lit = p.first;
@@ -184,6 +186,7 @@ bool SentinelState::check_watched_literals(string &err_msg) const
           break;
         }
       }
+      assert(other != LIT_UNDEF);
       bool last_failed = false;
 
       for (const WatchInvariant& invariant : _watch_invariants) {
@@ -245,11 +248,11 @@ bool SentinelState::check_assignment_coherence(std::string& err_msg) const
   for (Tlit lit : _trail) {
     if (visited[lit.var().value]) {
       success = false;
-      err_msg += error_header + "variable " + lit.var().to_string() + " is visited more than once.\n";
+      err_msg += error_header + "variable " + lit.var().to_string() + " is present more than once in the trail.\n";
     }
     if (lit_undef(lit)) {
       success = false;
-      err_msg += error_header + "variable " + lit.var().to_string() + " is undefined.\n";
+      err_msg += error_header + "variable " + lit.var().to_string() + " is undefined in the trail.\n";
     }
     if (lit_false(lit)) {
       success = false;
@@ -258,7 +261,7 @@ bool SentinelState::check_assignment_coherence(std::string& err_msg) const
     visited[lit.var().value] = true;
 
     if (!justified(lit))
-    continue;
+      continue;
     Tclause r = reason(lit);
     const clause c = _clauses[r];
     if (!c.active) {
@@ -270,9 +273,9 @@ bool SentinelState::check_assignment_coherence(std::string& err_msg) const
     for (Tlit l : c.literals) {
       if (l == lit)
         continue;
-      if (!lit_undef(l)) {
+      if (!lit_false(l)) {
         success = false;
-        err_msg += error_header + "clause " + to_string(r) + " is satisfied by literal " + to_string(l) + " but not by " + to_string(lit) + ".\n";
+        err_msg += error_header + "clause " + to_string(r) + " does not imply " + to_string(lit) + " correctly.\n";
       }
     }
   }
