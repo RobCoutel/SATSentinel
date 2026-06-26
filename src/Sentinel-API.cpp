@@ -104,19 +104,19 @@ namespace sentinel
     return sentinel->get_external_commands();
   }
 
-  bool message(SATSentinel* sentinel, std::string message, unsigned level)
+  bool message(SATSentinel* sentinel, const std::string& message, unsigned level)
   {
     return sentinel->notify(new notif::message(message, level));
   }
 
-  bool save_execution(SATSentinel* sentinel, std::string filename)
+  bool save_execution(SATSentinel* sentinel, const std::string& filename)
   {
     assert(sentinel);
     // TODO: Implement serialization logic
     return true;
   }
 
-  bool load_execution(SATSentinel* sentinel, std::string filename)
+  bool load_execution(SATSentinel* sentinel, const std::string& filename)
   {
     assert(sentinel);
     // TODO: Implement deserialization logic

@@ -33,10 +33,10 @@ namespace sentinel
 
   bool check_invariants(SATSentinel* sentinel);
   bool checkpoint(SATSentinel* sentinel);
-  bool message(SATSentinel* sentinel, std::string message, unsigned level = 0);
+  bool message(SATSentinel* sentinel, const std::string& message, unsigned level = 0);
 
-  bool save_execution(SATSentinel* sentinel, std::string filename);
-  bool load_execution(SATSentinel* sentinel, std::string filename);
+  bool save_execution(SATSentinel* sentinel, const std::string& filename);
+  bool load_execution(SATSentinel* sentinel, const std::string& filename);
 
   void set_command_parser(SATSentinel* sentinel, Tparser* parser);
 }
