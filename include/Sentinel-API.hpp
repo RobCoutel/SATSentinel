@@ -218,9 +218,19 @@ namespace sentinel
    * @param sentinel Sentinel instance.
    * @param lit Literal to lock.
    * @pre var(lit) ∈ V
+   * @pre lit is not locked as an assumption
+   * @post lit is locked as an assumption
    */
   bool lock_assumption(SATSentinel* sentinel, Tlit lit);
 
+  /**
+   * @brief Unlocks a literal as an assumption.
+   * @param sentinel Sentinel instance.
+   * @param lit Literal to unlock.
+   * @pre var(lit) ∈ V
+   * @pre lit is locked as an assumption
+   * @post lit is unlocked as an assumption
+   */
   bool unlock_assumption(SATSentinel* sentinel, Tlit lit);
 
   /**

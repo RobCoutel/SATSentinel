@@ -262,7 +262,7 @@ namespace sentinel
     old_level = state->level(var);
     state->level(var) = level;
 
-    assert(old_level.value < state->_level_counters.size());
+    SOFT_ASSERT(old_level.value < state->_level_counters.size());
     deleted_level = state->decrement_level_counter(old_level);
     return true;
   }

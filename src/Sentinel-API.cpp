@@ -92,6 +92,16 @@ namespace sentinel
     return sentinel->notify(new notif::block(clause, lit, watch));
   }
 
+  bool lock_assumption(SATSentinel* sentinel, Tlit lit)
+  {
+    return sentinel->notify(new notif::lock_assumption(lit));
+  }
+
+  bool unlock_assumption(SATSentinel* sentinel, Tlit lit)
+  {
+    return sentinel->notify(new notif::unlock_assumption(lit));
+  }
+
   bool check_invariants(SATSentinel* sentinel)
   {
     assert(sentinel);
