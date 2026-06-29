@@ -108,7 +108,7 @@ void sentinel::SATSentinel::register_commands() {
     [this](int var) {
       Tvar tvar(var);
       if (tvar.value >= state->variables_size()) {
-        std::cout << "Variable " << tvar.to_string() << " does not exist" << std::endl;
+        std::cout << "Variable " << tvar << " does not exist" << std::endl;
         return false;
       }
       markers->mark(tvar);
@@ -130,7 +130,7 @@ void sentinel::SATSentinel::register_commands() {
     [this](int cl) {
       Tclause tcl(cl);
       if (tcl.value >= state->clauses_size()) {
-        std::cout << "Clause " << tcl.to_string() << " does not exist" << std::endl;
+        std::cout << "Clause " << tcl << " does not exist" << std::endl;
         return false;
       }
       markers->mark(tcl);

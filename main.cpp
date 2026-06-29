@@ -41,7 +41,7 @@ void configure_command_parser(SATSentinel* sentinel, CommandParser& parser)
     [sentinel](int var) {
       Tvar tvar(var);
       if (!add_variable(sentinel, tvar)) {
-        std::cout << "Variable " << tvar.to_string() << " already exists" << std::endl;
+        std::cout << "Variable " << tvar << " already exists" << std::endl;
         return false;
       }
       return true;
@@ -64,7 +64,7 @@ void configure_command_parser(SATSentinel* sentinel, CommandParser& parser)
         lits.push_back(Tlit(var, lit > 0));
       }
       if (!add_clause(sentinel, cl, lits.data(), lits.size())) {
-        std::cout << "Clause " << cl.to_string() << " failed to be added." << std::endl;
+        std::cout << "Clause " << cl << " failed to be added." << std::endl;
         return false;
       }
       return true;
@@ -80,7 +80,7 @@ void configure_command_parser(SATSentinel* sentinel, CommandParser& parser)
       }
       Tclause clause(args[0]);
       if (!delete_clause(sentinel, clause)) {
-        std::cout << "Clause " << clause.to_string() << " failed to be deleted." << std::endl;
+        std::cout << "Clause " << clause << " failed to be deleted." << std::endl;
         return false;
       }
       return true;
@@ -97,7 +97,7 @@ void configure_command_parser(SATSentinel* sentinel, CommandParser& parser)
       Tclause clause(args[0]);
       Tlit removed_lit(Tvar(abs(args[1])), args[1] < 0);
       if (!shrink_clause(sentinel, clause, removed_lit)) {
-        std::cout << "Clause " << clause.to_string() << " failed to be shrunk." << std::endl;
+        std::cout << "Clause " << clause << " failed to be shrunk." << std::endl;
         return false;
       }
       return true;
@@ -114,7 +114,7 @@ void configure_command_parser(SATSentinel* sentinel, CommandParser& parser)
       Tlit lit(Tvar(abs(args[0])), args[0] < 0);
       Tclause reason = (args.size() == 2) ? Tclause(args[1]) : CLAUSE_UNDEF;
       if (!assign(sentinel, lit, reason)) {
-        std::cout << "Literal " << lit.to_string() << " failed to be assigned." << std::endl;
+        std::cout << "Literal " << lit << " failed to be assigned." << std::endl;
         return false;
       }
       return true;
@@ -126,7 +126,7 @@ void configure_command_parser(SATSentinel* sentinel, CommandParser& parser)
     [sentinel](int lit) {
       Tlit tlit(Tvar(abs(lit)), lit < 0);
       if (!unassign(sentinel, tlit)) {
-        std::cout << "Literal " << tlit.to_string() << " failed to be unassigned." << std::endl;
+        std::cout << "Literal " << tlit << " failed to be unassigned." << std::endl;
         return false;
       }
       return true;

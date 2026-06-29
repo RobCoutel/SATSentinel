@@ -149,3 +149,33 @@ namespace sentinel
   const Tclause CLAUSE_ASSUMPTION = 0xFFFFFFFD;
   const Tclause CLAUSE_ERROR      = 0xFFFFFFFC;
 }
+
+namespace std {
+  // define to to_string for Tvar, Tlit, Tlevel, Tclause
+  inline std::string to_string(const sentinel::Tvar& var) {
+      return var.to_string();
+  }
+  inline std::string to_string(const sentinel::Tlit& lit) {
+      return lit.to_string();
+  }
+  inline std::string to_string(const sentinel::Tlevel& level) {
+      return level.to_string();
+  }
+  inline std::string to_string(const sentinel::Tclause& cl) {
+      return cl.to_string();
+  }
+
+  // define operator<< for Tvar, Tlit, Tlevel, Tclause
+  inline std::ostream& operator<<(std::ostream& os, const sentinel::Tvar& var) {
+      return os << var.to_string();
+  }
+  inline std::ostream& operator<<(std::ostream& os, const sentinel::Tlit& lit) {
+      return os << lit.to_string();
+  }
+  inline std::ostream& operator<<(std::ostream& os, const sentinel::Tlevel& level) {
+      return os << level.to_string();
+  }
+  inline std::ostream& operator<<(std::ostream& os, const sentinel::Tclause& cl) {
+      return os << cl.to_string();
+  }
+}

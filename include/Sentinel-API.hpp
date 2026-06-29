@@ -214,6 +214,16 @@ namespace sentinel
              Tlit watch);
 
   /**
+   * @brief Locks a literal as an assumption.
+   * @param sentinel Sentinel instance.
+   * @param lit Literal to lock.
+   * @pre var(lit) ∈ V
+   */
+  bool lock_assumption(SATSentinel* sentinel, Tlit lit);
+
+  bool unlock_assumption(SATSentinel* sentinel, Tlit lit);
+
+  /**
    * @brief Verifies all maintained invariants.
    * @param sentinel Sentinel instance.
    * @return True iff all invariants hold.
