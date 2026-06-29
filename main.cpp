@@ -143,10 +143,11 @@ int main(int argc, char* argv[])
 
   std::vector<std::string> args(argv + 1, argv + argc);
 
-
-  set_command_parser(sentinel, [&parser](std::string input) {
-    return parser.parse(input);
+  Tparser* command_parser = new Tparser([&parser](std::string input) {
+    bool continue_on_success = false;
+    return parser.parse(input, continue_on_success);
   });
+  set_command_parser(sentinel, command_parser);
 
   while (true) {
     checkpoint(sentinel);
