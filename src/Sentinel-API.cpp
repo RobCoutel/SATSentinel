@@ -128,4 +128,24 @@ namespace sentinel
     sentinel->set_command_parser(parser);
   }
 
+  void add_invariant(SATSentinel* sentinel, std::function<bool(std::string&)> custom_checker, const std::string& name)
+  {
+    sentinel->add_invariant(new Invariant(name, custom_checker));
+  }
+
+  void add_invariant(SATSentinel* sentinel, Invariant* invariant)
+  {
+    sentinel->add_invariant(invariant);
+  }
+
+  void add_watch_invariant(SATSentinel* sentinel, std::function<bool(Tlit, Tlit, Tlit, std::string&)> custom_checker, const std::string& name)
+  {
+    sentinel->add_watch_invariant(new WatchInvariant(name, custom_checker));
+  }
+
+  void add_watch_invariant(SATSentinel* sentinel, WatchInvariant* invariant)
+  {
+    sentinel->add_watch_invariant(invariant);
+  }
+
 }

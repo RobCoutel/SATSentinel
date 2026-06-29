@@ -16,41 +16,19 @@ SentinelState::SentinelState(SentinelOptions* options)
     _options = new SentinelOptions();
   }
 
-  if (_options->check_trail_sanity) {
-    _invariants.push_back(trail_sanity);
-  }
-  if (_options->check_implied_levels) {
-    _invariants.push_back(implied_levels);
-  }
-  if (_options->check_trail_monotonicity) {
-    _invariants.push_back(trail_monotonicity);
-  }
-  if (_options->check_no_missed_implications) {
-    _invariants.push_back(no_missed_implications);
-  }
-  if (_options->check_topological_order) {
-    _invariants.push_back(topological_order);
-  }
-  if (_options->check_assignment_coherence) {
-    _invariants.push_back(assignment_coherence);
-  }
-
-  if (_options->check_weak_watched_literals) {
-    _watch_invariants.push_back(WatchInvariant("Weak Watched Literals", [this](Tlit c1, Tlit c2, Tlit blocker, std::string& err_msg) {
-      return this->weak_watched_literals(c1, c2, blocker);
-    }));
-  }
-  if (_options->check_strong_watched_literals) {
-    _watch_invariants.push_back(WatchInvariant("Strong Watched Literals", [this](Tlit c1, Tlit c2, Tlit blocker, std::string& err_msg) {
-      return this->strong_watched_literals(c1, c2, blocker);
-    }));
-  }
+  register_invariants();
 }
 
 SentinelState::~SentinelState()
 {
   if (_options) {
     delete _options;
+  }
+  for (Invariant* invariant : _invariants) {
+    delete invariant;
+  }
+  for (WatchInvariant* watch_invariant : _watch_invariants) {
+    delete watch_invariant;
   }
 }
 
@@ -198,7 +176,6 @@ std::string SentinelState::to_string(Tclause cl) const
     return "C" + std::to_string(cl.value) + " (inactive)";
   }
 
-  std::string s = cl.to_string()+ ": ";
   std::string satisfied_lits = "";
   std::string undefined_lits = "";
   std::string falsified_lits = "";
@@ -239,6 +216,18 @@ std::string SentinelState::to_string(Tclause cl) const
       falsified_lits += " ";
     }
   }
+
+  std::string s = "";
+  if (!satisfied_lits.empty()) {
+    s += GREEN;
+  } else if (!undefined_lits.empty()) {
+    s += ORANGE;
+  } else {
+    s += RED;
+  }
+  s += cl.to_string() + RESET + ": ";
+
+
   s += satisfied_lits + undefined_lits + falsified_lits;
   if (c.n_deleted_literals > 0) {
     s += "| ";
@@ -248,5 +237,51 @@ std::string SentinelState::to_string(Tclause cl) const
     }
   }
   return s;
+}
+
+void SentinelState::register_invariants()
+{
+
+  if (_options->check_no_conflicts) {
+    _invariants.push_back(new Invariant("Trail Sanity", [this](std::string& err_msg) {
+      return this->check_no_conflicts(err_msg);
+    }));
+  }
+  if (_options->check_implied_levels) {
+    _invariants.push_back(new Invariant("Implied Levels", [this](std::string& err_msg) {
+      return this->check_implied_levels(err_msg);
+    }));
+  }
+  if (_options->check_trail_monotonicity) {
+    _invariants.push_back(new Invariant("Trail Monotonicity", [this](std::string& err_msg) {
+      return this->check_trail_monotonicity(err_msg);
+    }));
+  }
+  if (_options->check_no_missed_implications) {
+    _invariants.push_back(new Invariant("No Missed Implications", [this](std::string& err_msg) {
+      return this->check_no_missed_implications(err_msg);
+    }));
+  }
+  if (_options->check_topological_order) {
+    _invariants.push_back(new Invariant("Topological Order", [this](std::string& err_msg) {
+      return this->check_topological_order(err_msg);
+    }));
+  }
+  if (_options->check_assignment_coherence) {
+    _invariants.push_back(new Invariant("Assignment Coherence", [this](std::string& err_msg) {
+      return this->check_assignment_coherence(err_msg);
+    }));
+  }
+
+  if (_options->check_weak_watched_literals) {
+    _watch_invariants.push_back(new WatchInvariant("Weak Watched Literals", [this](Tlit c1, Tlit c2, Tlit blocker, std::string& err_msg) {
+      return this->weak_watched_literals(c1, c2, blocker);
+    }));
+  }
+  if (_options->check_strong_watched_literals) {
+    _watch_invariants.push_back(new WatchInvariant("Strong Watched Literals", [this](Tlit c1, Tlit c2, Tlit blocker, std::string& err_msg) {
+      return this->strong_watched_literals(c1, c2, blocker);
+    }));
+  }
 }
 }

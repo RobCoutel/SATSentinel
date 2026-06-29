@@ -53,6 +53,10 @@ namespace sentinel
 
     bool check_invariants() const;
 
+    void add_invariant(Invariant* invariant);
+
+    void add_watch_invariant(WatchInvariant* invariant);
+
   private:
     SentinelOptions* _options;
 

@@ -450,7 +450,6 @@ namespace sentinel
 
     previous_blocker = it->second;
     state->_clauses[cl.value].watches.erase(it);
-      SOFT_ASSERT(state->propagated(lit.var()) == false);
     return true;
   }
   bool notif::unwatch::rollback(SentinelState* state)

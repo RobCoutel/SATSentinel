@@ -106,7 +106,7 @@ public:
 
   bool check_watched_literals(std::string &err_msg) const;
 
-  bool check_trail_sanity(std::string &err_msg) const;
+  bool check_no_conflicts(std::string &err_msg) const;
   bool check_implied_levels(std::string &err_msg) const;
   bool check_trail_monotonicity(std::string &err_msg) const;
   bool check_no_missed_implications(std::string &err_msg) const;
@@ -116,11 +116,10 @@ public:
   bool weak_watched_literals(Tlit c1, Tlit c2, Tlit blocker) const;
   bool strong_watched_literals(Tlit c1, Tlit c2, Tlit blocker) const;
 
-  std::vector<Invariant> _invariants;
-  void add_custom_invariant(std::function<bool(const SentinelState*, std::string&)> custom_checker, const std::string& name = "Custom Invariant");
-  void add_invariant(const Invariant& invariant) { _invariants.push_back(invariant); }
-  std::vector<WatchInvariant> _watch_invariants;
-  void add_custom_watch_invariant(std::function<bool(Tlit, Tlit, Tlit, std::string& err_msg)> custom_checker);
+  std::vector<Invariant*> _invariants;
+  void add_invariant(Invariant* invariant) { _invariants.push_back(invariant); }
+  std::vector<WatchInvariant*> _watch_invariants;
+  void add_watch_invariant(WatchInvariant* invariant) { _watch_invariants.push_back(invariant); }
 
   /** PRINTING **/
   std::string to_string(Tlit lit) const;
@@ -185,25 +184,9 @@ public:
 
   // for each level, keeps track of the number of literals assigned at this level.
   std::vector<unsigned> _level_counters;
-};
 
-const Invariant trail_sanity("Trail Sanity", [](const SentinelState* state, std::string& err_msg) {
-  return state->check_trail_sanity(err_msg);
-});
-const Invariant implied_levels("Implied Levels", [](const SentinelState* state, std::string& err_msg) {
-  return state->check_implied_levels(err_msg);
-});
-const Invariant trail_monotonicity("Trail Monotonicity", [](const SentinelState* state, std::string& err_msg) {
-  return state->check_trail_monotonicity(err_msg);
-});
-const Invariant no_missed_implications("No Missed Implications", [](const SentinelState* state, std::string& err_msg) {
-  return state->check_no_missed_implications(err_msg);
-});
-const Invariant topological_order("Topological Order", [](const SentinelState* state, std::string& err_msg) {
-  return state->check_topological_order(err_msg);
-});
-const Invariant assignment_coherence("Assignment Coherence", [](const SentinelState* state, std::string& err_msg) {
-  return state->check_assignment_coherence(err_msg);
-});
+  private:
+  void register_invariants();
+};
 
 }

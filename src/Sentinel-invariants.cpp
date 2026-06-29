@@ -2,6 +2,7 @@
 
 #include "utils/printer.hpp"
 #include "Sentinel-invariants.hpp"
+#include "SATSentinel.hpp"
 
 #include <iostream>
 #include <fstream>
@@ -11,13 +12,33 @@ using namespace std;
 
 namespace sentinel {
 
+bool SATSentinel::check_invariants() const
+{
+  std::string err_msg;
+  bool success = state->check_invariants(err_msg);
+  if (!success) {
+    std::cerr << "Invariant check failed:\n" << err_msg << std::endl;
+  }
+  return success;
+}
+
+void SATSentinel::add_invariant(Invariant* invariant)
+{
+  state->add_invariant(invariant);
+}
+
+void SATSentinel::add_watch_invariant(WatchInvariant* invariant)
+{
+  state->add_watch_invariant(invariant);
+}
+
 bool SentinelState::check_invariants(string &err_msg, bool check_watch) const
 {
   bool success = true;
-  for (const Invariant& invariant : _invariants) {
-    if (!invariant.check(this)) {
+  for (const Invariant* invariant : _invariants) {
+    if (!invariant->check()) {
       success = false;
-      err_msg += ERROR_HEAD + "Invariant violation (" + invariant.name + "): " + invariant.error_message + "\n";
+      err_msg += ERROR_HEAD + "Invariant violation (" + invariant->name + "): " + invariant->error_message + "\n";
     }
   }
   if (check_watch) {
@@ -26,7 +47,7 @@ bool SentinelState::check_invariants(string &err_msg, bool check_watch) const
   return success;
 }
 
-bool SentinelState::check_trail_sanity(string &err_msg) const
+bool SentinelState::check_no_conflicts(string &err_msg) const
 {
   const string error_header = ERROR_HEAD + "Invariant violation (trail sanity): ";
   bool success = true;
@@ -189,11 +210,11 @@ bool SentinelState::check_watched_literals(string &err_msg) const
       assert(other != LIT_UNDEF);
       bool last_failed = false;
 
-      for (const WatchInvariant& invariant : _watch_invariants) {
-        if (!invariant.check(lit, other, blocker)) {
+      for (const WatchInvariant* invariant : _watch_invariants) {
+        if (!invariant->check(lit, other, blocker)) {
           success = false;
           last_failed = true;
-          err_msg += ERROR_HEAD + "Invariant violation (" + invariant.name + "): " + invariant.geterr_msg() + "\n";
+          err_msg += ERROR_HEAD + "Invariant violation (" + invariant->name + "): " + invariant->geterr_msg() + "\n";
         }
       }
 
@@ -215,29 +236,19 @@ bool SentinelState::check_watched_literals(string &err_msg) const
 bool SentinelState::weak_watched_literals(Tlit c1, Tlit c2, Tlit blocker) const
 {
   // ¬c₁ ∈ τ ⇒ [¬c₂ ∉ τ ∨ b ∈ π]
-  bool success = !propagated(c1) || !lit_false(c1);
-  success |= !propagated(c2) || !lit_false(c2);
-  success |= lit_true(blocker);
+  bool success  = !(propagated(c1) && lit_false(c1));
+       success |= !(propagated(c2) && lit_false(c2));
+       success |= lit_true(blocker);
   return success;
 }
 
 bool SentinelState::strong_watched_literals(Tlit c1, Tlit c2, Tlit blocker) const
 {
   // ¬c₁ ∈ τ ⇒ [c₂ ∈ π ∨ b ∈ π]
-  bool success = !propagated(c1) || !lit_false(c1);
-  success |= lit_true(c2);
-  success |= lit_true(blocker);
+  bool success  = !propagated(c1) || !lit_false(c1);
+       success |= lit_true(c2);
+       success |= lit_true(blocker);
   return success;
-}
-
-void SentinelState::add_custom_invariant(std::function<bool(const SentinelState*, std::string&)> custom_checker, const std::string& name)
-{
-  _invariants.emplace_back(name, custom_checker);
-}
-
-void SentinelState::add_custom_watch_invariant(std::function<bool(Tlit, Tlit, Tlit, std::string& err_msg)> custom_checker)
-{
-  _watch_invariants.emplace_back("Custom Watch Invariant", custom_checker);
 }
 
 bool SentinelState::check_assignment_coherence(std::string& err_msg) const
@@ -270,13 +281,20 @@ bool SentinelState::check_assignment_coherence(std::string& err_msg) const
       continue;
     }
     // check that the reason is only satisfied by one literal, that is "lit"
+    bool reason_satisfied = false;
     for (Tlit l : c.literals) {
-      if (l == lit)
+      if (l == lit) {
+        reason_satisfied = true;
         continue;
+      }
       if (!lit_false(l)) {
         success = false;
         err_msg += error_header + "clause " + to_string(r) + " does not imply " + to_string(lit) + " correctly.\n";
       }
+    }
+    if (!reason_satisfied) {
+      success = false;
+      err_msg += error_header + "clause " + to_string(r) + " does not contain " + to_string(lit) + ".\n";
     }
   }
   return success;

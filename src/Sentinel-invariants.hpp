@@ -13,10 +13,10 @@ class SentinelState;
 
 struct Invariant {
   const std::string name;
-  std::function<bool(const SentinelState*, std::string&)> invariant_checker;
+  std::function<bool(std::string&)> invariant_checker;
   mutable std::string error_message;
 
-  Invariant(const std::string name, std::function<bool(const SentinelState*, std::string&)> checker) :
+  Invariant(const std::string name, std::function<bool(std::string&)> checker) :
     name(name),
     invariant_checker(checker)
   {}
@@ -27,8 +27,8 @@ struct Invariant {
     return err_msg;
   }
 
-  bool check(const SentinelState* state) const {
-    return invariant_checker(state, error_message);
+  bool check() const {
+    return invariant_checker( error_message);
   }
 };
 
@@ -36,11 +36,15 @@ struct WatchInvariant {
   const std::string name;
   std::function<bool(Tlit, Tlit, Tlit, std::string& err_msg)> watch_literal_invariant;
   mutable std::string error_message;
+  const std::string description;
 
 public:
-  WatchInvariant(const std::string name, std::function<bool(Tlit, Tlit, Tlit, std::string&)> checker) :
+  WatchInvariant(const std::string name,
+                 std::function<bool(Tlit, Tlit, Tlit, std::string&)> checker,
+                 const std::string& description = "") :
     name(name),
-    watch_literal_invariant(checker) {}
+    watch_literal_invariant(checker),
+    description(description) {}
 
 
   bool check(Tlit c1, Tlit c2, Tlit blocker) const {

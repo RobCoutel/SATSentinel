@@ -53,17 +53,6 @@ bool SATSentinel::get_navigation_commands()
   return true;
 }
 
-bool SATSentinel::check_invariants() const
-{
-  std::string err_msg;
-  bool success = state->check_invariants(err_msg);
-  if (!success) {
-    std::cerr << "Invariant check failed:\n" << err_msg << std::endl;
-  }
-  return success;
-}
-
-
 void sentinel::SATSentinel::register_commands() {
   navigation_commands.add_command(Command(
     "next",
