@@ -30,6 +30,8 @@ namespace sentinel
     class notification;
   }
 
+  class SentinelGUI;
+
   class SentinelMarker {
     public:
       SentinelMarker() = default;
@@ -80,6 +82,12 @@ namespace sentinel
     std::set<size_t> breakpoints;
 
     SentinelState* state;
+
+    // Only ever non-null when SATSentinel was built with `make GUI=1` and
+    // SentinelOptions::gui is true. Declared unconditionally (rather than
+    // behind an #ifdef) so that sizeof(SATSentinel) and member offsets never
+    // differ between GUI=0/GUI=1 compiled translation units.
+    SentinelGUI* gui_view = nullptr;
 
     CommandParser navigation_commands;
 

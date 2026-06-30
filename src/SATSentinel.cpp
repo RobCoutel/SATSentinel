@@ -18,6 +18,10 @@
 #include "Sentinel-notifications.hpp"
 #include "utils/printer.hpp"
 
+#ifdef SENTINEL_GUI_ENABLED
+#include "gui/SentinelGUI.hpp"
+#endif
+
 #include <iostream>
 #include <vector>
 #include <string>
@@ -37,10 +41,30 @@ SATSentinel::SATSentinel(SentinelOptions* options)
   display_level = _options->default_display_level;
 
   register_commands();
+
+#ifdef SENTINEL_GUI_ENABLED
+  if (_options->gui) {
+    gui_view = new SentinelGUI(state, markers, _options, &display_level);
+    if (!gui_view->is_valid()) {
+      std::cout << WARNING_HEAD << "Failed to initialize the GUI (no display / GLFW init failure?); falling back to the terminal frontend." << std::endl;
+      delete gui_view;
+      gui_view = nullptr;
+      _options->gui = false;
+    }
+  }
+#else
+  if (_options->gui) {
+    std::cout << WARNING_HEAD << "GUI requested but SATSentinel was built without GUI support (rebuild with `make GUI=1`); continuing without GUI." << std::endl;
+    _options->gui = false;
+  }
+#endif
 }
 
 SATSentinel::~SATSentinel()
 {
+#ifdef SENTINEL_GUI_ENABLED
+  delete gui_view;
+#endif
   delete markers;
   delete state; // this will delete the options
   if (external_parser) {

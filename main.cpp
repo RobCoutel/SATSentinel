@@ -111,7 +111,7 @@ void configure_command_parser(SATSentinel* sentinel, CommandParser& parser)
         std::cout << "Invalid arguments (one or two arguments expected)" << std::endl;
         return false;
       }
-      Tlit lit(Tvar(abs(args[0])), args[0] < 0);
+      Tlit lit(Tvar(abs(args[0])), args[0] > 0);
       Tclause reason = (args.size() == 2) ? Tclause(args[1]) : CLAUSE_UNDEF;
       if (!assign(sentinel, lit, reason)) {
         std::cout << "Literal " << lit << " failed to be assigned." << std::endl;
@@ -124,7 +124,7 @@ void configure_command_parser(SATSentinel* sentinel, CommandParser& parser)
     "UNASSIGN",
     "Unassign a literal",
     [sentinel](int lit) {
-      Tlit tlit(Tvar(abs(lit)), lit < 0);
+      Tlit tlit(Tvar(abs(lit)), lit > 0);
       if (!unassign(sentinel, tlit)) {
         std::cout << "Literal " << tlit << " failed to be unassigned." << std::endl;
         return false;
@@ -135,13 +135,29 @@ void configure_command_parser(SATSentinel* sentinel, CommandParser& parser)
 
 int main(int argc, char* argv[])
 {
+  std::vector<std::string> args(argv + 1, argv + argc);
+  sentinel::SentinelOptions options;
+  for (size_t i = 0; i < args.size(); ++i) {
+    if (args[i] == "--interactive") {
+      options.interactive = true;
+    } else if (args[i] == "--check-only") {
+      options.check_only = true;
+    } else if (args[i] == "--crash-on-error") {
+      options.crash_on_error = true;
+    } else if (args[i] == "--gui") {
+      options.gui = true;
+    } else {
+      std::cout << "Unknown option: " << args[i] << std::endl;
+      return 1;
+    }
+  }
 
-  SATSentinel* sentinel = sentinel::create_sentinel(sentinel::SentinelOptions{});
+
+  SATSentinel* sentinel = sentinel::create_sentinel(options);
 
   CommandParser parser;
   configure_command_parser(sentinel, parser);
 
-  std::vector<std::string> args(argv + 1, argv + argc);
 
   Tparser* command_parser = new Tparser([&parser](std::string input) {
     bool continue_on_success = false;

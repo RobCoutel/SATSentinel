@@ -39,6 +39,12 @@ namespace sentinel
      */
     bool crash_on_error = false;
 
+    /**
+     * @brief If true, the sentinel will display a graphical interface (trail, variables, clauses, command and options panels) instead of printing to the terminal.
+     * @note Has no effect unless SATSentinel was built with GUI support (`make GUI=1`). If GUI support was not compiled in, this flag is silently ignored and a warning is logged.
+     */
+    bool gui = false;
+
   /**
    * Terminology:
    * we call: V the set of variables

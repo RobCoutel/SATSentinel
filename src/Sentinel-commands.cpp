@@ -17,6 +17,10 @@
 #include "Sentinel-types.hpp"
 #include "utils/printer.hpp"
 
+#ifdef SENTINEL_GUI_ENABLED
+#include "gui/SentinelGUI.hpp"
+#endif
+
 #include <cassert>
 #include <iostream>
 #include <fstream>
@@ -44,6 +48,18 @@ bool SATSentinel::get_external_commands()
     std::cout << "No external command parser set. Please set one using set_command_parser() before calling get_external_commands()." << std::endl;
     return false;
   }
+#ifdef SENTINEL_GUI_ENABLED
+  if (gui_view) {
+    // GUI is the sole interface: no terminal printing, no std::cin prompting.
+    SentinelGUI::GuiDispatch dispatch = [this](const std::string& cmd_input, bool& should_stop_prompting) {
+      bool cmd_success = external_parser->operator()(cmd_input);
+      should_stop_prompting = cmd_success;
+      return cmd_success;
+    };
+    gui_view->pump_until_command(dispatch, "Last notification: " + last_notification_message(), "USER COMMANDS");
+    return true;
+  }
+#endif
   bool success = false;
   print_state();
   std::cout << "Last notification: " << last_notification_message() << std::endl;
@@ -58,7 +74,16 @@ bool SATSentinel::get_external_commands()
 
 bool SATSentinel::get_navigation_commands()
 {
-  std::string input;
+#ifdef SENTINEL_GUI_ENABLED
+  if (gui_view) {
+    // GUI is the sole interface: no terminal printing, no std::cin prompting.
+    SentinelGUI::GuiDispatch dispatch = [this](const std::string& cmd_input, bool& should_stop_prompting) {
+      return navigation_commands.parse(cmd_input, should_stop_prompting);
+    };
+    gui_view->pump_until_command(dispatch, "Notification " + std::to_string(current_notification_index) + ": " + last_notification_message(), "NAVIGATION COMMANDS");
+    return true;
+  }
+#endif
   print_state();
   std::cout << "Notification " << current_notification_index << ": " << last_notification_message() << std::endl;
   std::cout << "NAVIGATION COMMANDS\n";
