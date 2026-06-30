@@ -1,3 +1,16 @@
+/*
+ * This file is part of the source code of the software program
+ * SATSentinel. It is protected by applicable copyright laws.
+ *
+ * This source code is protected by the terms of the MIT License.
+ */
+/**
+ * @file src/Sentinel-commands.cpp
+ * @author Robin Coutelier
+ *
+ * @brief Implementation of the CommandParser interactive loop and the built-in navigation
+ * commands (next, back, print state/clauses/variables/trail) registered on SATSentinel.
+ */
 #include "SATSentinel.hpp"
 #include "Sentinel-commands.hpp"
 

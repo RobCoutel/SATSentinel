@@ -1,3 +1,16 @@
+/*
+ * This file is part of the source code of the software program
+ * SATSentinel. It is protected by applicable copyright laws.
+ *
+ * This source code is protected by the terms of the MIT License.
+ */
+/**
+ * @file src/Sentinel-API.cpp
+ * @author Robin Coutelier
+ *
+ * @brief Implementation of the public C-style API functions, each wrapping a notification
+ * object dispatched through SATSentinel::notify().
+ */
 #include "Sentinel-API.hpp"
 
 #include "SATSentinel.hpp"

@@ -1,3 +1,10 @@
+/**
+ * @file tests/Sentinel-types.test.cpp
+ * @author Robin Coutelier
+ *
+ * @brief Catch2 unit tests for the Tvar, Tlit, Tlevel, and Tclause types defined in
+ * Sentinel-types.hpp.
+ */
 #include <catch2/catch_all.hpp>
 
 #include <set>

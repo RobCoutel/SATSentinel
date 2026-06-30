@@ -25,7 +25,7 @@ MODULES :=
 
 INC_DIRS += ./include/ ./src/ $(foreach D, $(MODULES), $(MODULES_DIR)/$(D)/include/)
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
-LINK_FLAGS := -llzma
+LINK_FLAGS :=
 TEST_LINK_FLAGS := -lCatch2Main -lCatch2
 
 CFLAGS ?= $(INC_FLAGS) -MMD -MP -fPIC -std=c++17 -Wall --pedantic
@@ -72,6 +72,11 @@ debug: $(BUILD_DIR)/$(EXEC)
 .PHONY: install
 install-test:
 	sudo apt-get install catch2
+
+.PHONY: install-hooks
+install-hooks:
+	git config core.hooksPath .githooks
+	@echo "Git hooks installed. Pre-commit hook will run tests before each commit."
 
 .PHONY: clean
 

@@ -1,3 +1,16 @@
+/*
+ * This file is part of the source code of the software program
+ * SATSentinel. It is protected by applicable copyright laws.
+ *
+ * This source code is protected by the terms of the MIT License.
+ */
+/**
+ * @file include/Sentinel-options.hpp
+ * @author Robin Coutelier
+ *
+ * @brief SentinelOptions configuration struct controlling interactive mode, display level, and
+ * which built-in invariant checks are enabled at runtime.
+ */
 #pragma once
 
 #include <string>

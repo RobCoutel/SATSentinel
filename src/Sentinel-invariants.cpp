@@ -1,3 +1,16 @@
+/*
+ * This file is part of the source code of the software program
+ * SATSentinel. It is protected by applicable copyright laws.
+ *
+ * This source code is protected by the terms of the MIT License.
+ */
+/**
+ * @file src/Sentinel-invariants.cpp
+ * @author Robin Coutelier
+ *
+ * @brief Implementation of built-in invariant checks (trail sanity, level ordering, watched
+ * literals, topological order, assignment coherence) and the SATSentinel registration wrappers.
+ */
 #include "Sentinel-state.hpp"
 
 #include "utils/printer.hpp"
@@ -17,7 +30,7 @@ bool SATSentinel::check_invariants() const
   std::string err_msg;
   bool success = state->check_invariants(err_msg);
   if (!success) {
-    std::cerr << "Invariant check failed:\n" << err_msg << std::endl;
+    LOG_ERROR("Invariant check failed:\n" << err_msg);
   }
   return success;
 }
@@ -38,11 +51,11 @@ bool SentinelState::check_invariants(string &err_msg, bool check_watch) const
   for (const Invariant* invariant : _invariants) {
     if (!invariant->check()) {
       success = false;
-      err_msg += ERROR_HEAD + "Invariant violation (" + invariant->name + "): " + invariant->error_message + "\n";
+      err_msg += "Invariant violation (" + invariant->name + "):\n" + invariant->error_message + "\n";
     }
   }
   if (check_watch) {
-    success = check_watched_literals(err_msg);
+    success &= check_watched_literals(err_msg);
   }
   return success;
 }

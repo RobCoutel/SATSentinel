@@ -1,5 +1,17 @@
+/*
+ * This file is part of the source code of the software program
+ * SATSentinel. It is protected by applicable copyright laws.
+ *
+ * This source code is protected by the terms of the MIT License.
+ */
+/**
+ * @file src/Sentinel-commands.hpp
+ * @author Robin Coutelier
+ *
+ * @brief Command and CommandParser classes that implement the interactive debugging interface,
+ * including command registration, aliasing, help generation, and line-by-line parsing.
+ */
 #pragma once
-
 
 #include <string>
 #include <functional>

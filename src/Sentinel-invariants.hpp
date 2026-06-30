@@ -1,3 +1,16 @@
+/*
+ * This file is part of the source code of the software program
+ * SATSentinel. It is protected by applicable copyright laws.
+ *
+ * This source code is protected by the terms of the MIT License.
+ */
+/**
+ * @file src/Sentinel-invariants.hpp
+ * @author Robin Coutelier
+ *
+ * @brief Invariant and WatchInvariant structs for registering custom solver correctness checks
+ * that are evaluated at each checkpoint.
+ */
 #pragma once
 
 #include "Sentinel-types.hpp"

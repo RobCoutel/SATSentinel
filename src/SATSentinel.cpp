@@ -1,3 +1,16 @@
+/*
+ * This file is part of the source code of the software program
+ * SATSentinel. It is protected by applicable copyright laws.
+ *
+ * This source code is protected by the terms of the MIT License.
+ */
+/**
+ * @file src/SATSentinel.cpp
+ * @author Robin Coutelier
+ *
+ * @brief Implementation of SATSentinel: notification replay (next/back), invariant registration,
+ * interactive state display, and built-in navigation command setup.
+ */
 #include "SATSentinel.hpp"
 
 #include "Sentinel-types.hpp"
@@ -54,16 +67,16 @@ bool SATSentinel::next()
 
     if (!success) {
       failed = true;
-      std::cerr << "Notification failed: " << notif->get_message() << std::endl;
+      LOG_ERROR("Notification failed: " << notif->get_message());
       if (_options->crash_on_error) {
-        std::cerr << "Crashing due to error..." << std::endl;
+        LOG_ERROR("Crashing due to error...");
         abort();
       }
     }
     display_state = true;
     break;
   }
-  if (display_state) {
+  if (display_state && !_options->check_only) {
     get_navigation_commands();
   }
   return success;

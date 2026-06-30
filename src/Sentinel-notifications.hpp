@@ -1,3 +1,16 @@
+/*
+ * This file is part of the source code of the software program
+ * SATSentinel. It is protected by applicable copyright laws.
+ *
+ * This source code is protected by the terms of the MIT License.
+ */
+/**
+ * @file src/Sentinel-notifications.hpp
+ * @author Robin Coutelier
+ *
+ * @brief Declaration of the notification base class and all 26 concrete notification types that
+ * represent solver events (variable creation, assignment, propagation, clause management, etc.).
+ */
 #pragma once
 
 #include "Sentinel-types.hpp"

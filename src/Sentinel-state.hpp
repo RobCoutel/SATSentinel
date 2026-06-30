@@ -1,3 +1,16 @@
+/*
+ * This file is part of the source code of the software program
+ * SATSentinel. It is protected by applicable copyright laws.
+ *
+ * This source code is protected by the terms of the MIT License.
+ */
+/**
+ * @file src/Sentinel-state.hpp
+ * @author Robin Coutelier
+ *
+ * @brief SentinelState: the internal mirror of the solver's variable, clause, and trail state,
+ * updated by notification apply/rollback and queried by invariant checks and display routines.
+ */
 #pragma once
 
 #include "Sentinel-types.hpp"

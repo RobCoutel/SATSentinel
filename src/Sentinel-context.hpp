@@ -1,3 +1,16 @@
+/*
+ * This file is part of the source code of the software program
+ * SATSentinel. It is protected by applicable copyright laws.
+ *
+ * This source code is protected by the terms of the MIT License.
+ */
+/**
+ * @file src/Sentinel-context.hpp
+ * @author Robin Coutelier
+ *
+ * @brief SentinelContext carrying per-session display settings, notably the display level that
+ * controls which notification events trigger an interactive pause.
+ */
 #pragma once
 
 namespace sentinel

@@ -1,0 +1,19 @@
+#!/bin/sh
+# Run SATSentinel unit tests before allowing a commit.
+
+REPO_DIR="$(git rev-parse --show-toplevel)"
+cd "$REPO_DIR" || exit 1
+
+echo "Running SATSentinel tests..."
+
+if ! make tests -s 2>&1; then
+  echo "ERROR: 'make tests' failed to build — commit aborted." >&2
+  exit 1
+fi
+
+if ! ./build/SATSentinel-tests 2>&1; then
+  echo "ERROR: Unit tests failed — commit aborted." >&2
+  exit 1
+fi
+
+echo "All tests passed."

@@ -1,3 +1,17 @@
+/*
+ * This file is part of the source code of the software program
+ * SATSentinel. It is protected by applicable copyright laws.
+ *
+ * This source code is protected by the terms of the MIT License.
+ */
+/**
+ * @file include/Sentinel-API.hpp
+ * @author Robin Coutelier
+ *
+ * @brief Public C-style API for SATSentinel, covering instance management, variable and clause
+ * operations, trail assignment, watch-list management, assumption locking, invariant checking,
+ * and execution control.
+ */
 #pragma once
 
 #include "Sentinel-types.hpp"

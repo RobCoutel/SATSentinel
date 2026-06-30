@@ -1,3 +1,16 @@
+/*
+ * This file is part of the source code of the software program
+ * SATSentinel. It is protected by applicable copyright laws.
+ *
+ * This source code is protected by the terms of the MIT License.
+ */
+/**
+ * @file src/Sentinel-notifications.cpp
+ * @author Robin Coutelier
+ *
+ * @brief apply() and rollback() implementations for all notification types, advancing or
+ * rewinding the SentinelState to support forward and backward replay of solver events.
+ */
 #include "Sentinel-notifications.hpp"
 
 #include "SATSentinel.hpp"
@@ -9,10 +22,10 @@
 
 using namespace std;
 
-#define SOFT_ASSERT(cond) if (!(cond))                \
-do {                                             \
+#define SOFT_ASSERT(cond) if (!(cond))                     \
+do {                                                       \
   std::cerr << "Assertion failed: " << #cond << std::endl; \
-  return false;                                  \
+  return false;                                            \
 } while (0)
 
 namespace sentinel
@@ -168,10 +181,10 @@ namespace sentinel
 
     state->increment_level_counter(var.level, deleted_level);
 
-    // add it back to the trail
-    state->_trail.resize(var.position + 1);
-    for (unsigned i = state->_trail.size(); i > var.position; i--) {
-      state->_trail[i] = state->_trail[i-1];
+    // Insert literal back at its original position, shifting later elements right.
+    state->_trail.push_back(LIT_UNDEF);
+    for (unsigned i = (unsigned)state->_trail.size() - 1; i > var.position; i--) {
+      state->_trail[i] = state->_trail[i - 1];
       state->position(state->_trail[i].var()) = i;
     }
     state->_trail[var.position] = lit;

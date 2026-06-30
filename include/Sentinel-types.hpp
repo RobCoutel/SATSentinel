@@ -1,9 +1,15 @@
+/*
+ * This file is part of the source code of the software program
+ * SATSentinel. It is protected by applicable copyright laws.
+ *
+ * This source code is protected by the terms of the MIT License.
+ */
 /**
- * @file include/SAT-types.hpp
+ * @file include/Sentinel-types.hpp
  * @author Robin Coutelier
  *
- * @brief This file is part of the NapSAT solver. It defines the basic types used in the SAT
- * solver, and some basic operations on these types.
+ * @brief Fundamental types used throughout SATSentinel: Tvar, Tlit, Tlevel, Tclause, Tval,
+ * Tparser, and their arithmetic, comparison, and string-conversion operations.
  */
 #pragma once
 

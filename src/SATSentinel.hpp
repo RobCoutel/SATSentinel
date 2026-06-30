@@ -1,3 +1,16 @@
+/*
+ * This file is part of the source code of the software program
+ * SATSentinel. It is protected by applicable copyright laws.
+ *
+ * This source code is protected by the terms of the MIT License.
+ */
+/**
+ * @file src/SATSentinel.hpp
+ * @author Robin Coutelier
+ *
+ * @brief Declaration of SATSentinel (the main observer class) and SentinelMarker (used to
+ * highlight specific variables or clauses in interactive display).
+ */
 #pragma once
 
 #include "Sentinel-types.hpp"
@@ -79,8 +92,16 @@ namespace sentinel
     unsigned display_level = 0;
     bool failed = false;
 
+    /**
+     * @brief Continue the replay of the notifications until the next breakpoint, or the notification level is lower than the display level, or the end of the notifications is reached.
+     * @return false if the last notification failed, true otherwise.
+     */
     bool next();
 
+    /**
+     * @brief Go back to the previous notification, and rollback the state of the solver until we reach a checkpoint, or the notification level is lower than the display level, or the beginning of the notifications is reached.
+     * @return false if the last notification failed, true otherwise.
+     */
     bool back();
 
     std::string last_notification_message() const;
