@@ -84,23 +84,24 @@ bool SentinelState::decrement_level_counter(Tlevel level)
   assert(level.value < _level_counters.size());
   _level_counters[level.value]--;
   if (_level_counters[level.value] == 0) {
-    for (unsigned i = level.value + 1; i < _level_counters.size(); i++) {
-      _level_counters[i - 1] = _level_counters[i];
+    // if the level is top level, then we can remove all the empty levels from the top
+    if (level.value == _level_counters.size() - 1) {
+      // we do not remove level 0
+      while (_level_counters.size() > 1 && _level_counters.back() == 0) {
+        _level_counters.pop_back();
+      }
     }
-    _level_counters.pop_back();
     return true;
   }
   return false;
 }
 
-void SentinelState::increment_level_counter(Tlevel level, bool create)
+void SentinelState::increment_level_counter(Tlevel level)
 {
-  if (!create) {
-    assert(level.value < _level_counters.size());
-    _level_counters[level.value]++;
-  } else {
-    _level_counters.insert(_level_counters.begin() + level.value, 1);
+  if (level.value >= _level_counters.size()) {
+    _level_counters.resize(level.value + 1, 0);
   }
+  _level_counters[level.value]++;
 }
 
 
@@ -147,15 +148,15 @@ std::string SentinelState::to_string(Tvar var) const
   else
     s += var.to_string() + " ";
   if (active(var)) {
-    if (value(var) == VAR_UNDEF) {
+    if (value(var) == VAL_UNDEF) {
       s += ORANGE;
       s += "undef";
       s += RESET;
-    } else if (value(var) == VAR_TRUE) {
+    } else if (value(var) == VAL_TRUE) {
       s += GREEN;
       s += "true";
       s += RESET;
-    } else if (value(var) == VAR_FALSE) {
+    } else if (value(var) == VAL_FALSE) {
       s += RED;
       s += "false";
       s += RESET;

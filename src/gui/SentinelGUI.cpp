@@ -22,6 +22,7 @@
 #include <imgui_impl_opengl3.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <iostream>
 
@@ -44,8 +45,8 @@ namespace
 
   ImVec4 color_for_val(Tval v)
   {
-    if (v == VAR_UNDEF) return COLOR_ORANGE;
-    if (v == VAR_TRUE)  return COLOR_GREEN;
+    if (v == VAL_UNDEF) return COLOR_ORANGE;
+    if (v == VAL_TRUE)  return COLOR_GREEN;
     return COLOR_RED;
   }
 
@@ -84,11 +85,17 @@ namespace
   }
 }
 
-SentinelGUI::SentinelGUI(const SentinelState* state, const SentinelMarker* markers, SentinelOptions* options, const unsigned* display_level) :
+SentinelGUI::SentinelGUI(const SentinelState* state, const SentinelMarker* markers, SentinelOptions* options, const unsigned* display_level,
+                          const std::function<std::string(Tvar)>* variable_detail_callback,
+                          const std::function<std::string(Tclause)>* clause_detail_callback,
+                          std::function<bool()> is_real_time) :
   _state(state),
   _markers(markers),
   _options(options),
-  _display_level(display_level)
+  _display_level(display_level),
+  _variable_detail_callback(variable_detail_callback),
+  _clause_detail_callback(clause_detail_callback),
+  _is_real_time(is_real_time)
 {
   glfwSetErrorCallback([](int error, const char* description) {
     std::cerr << ERROR_HEAD << "GLFW error " << error << ": " << description << std::endl;
@@ -136,6 +143,7 @@ SentinelGUI::~SentinelGUI()
 void SentinelGUI::submit(const std::string& input)
 {
   bool stop = false;
+  _context_refreshed = false;
   bool success = _dispatch ? _dispatch(input, stop) : false;
 
   _log.push_back({ "> " + input, success });
@@ -147,8 +155,20 @@ void SentinelGUI::submit(const std::string& input)
   _history_browse_pos = -1;
   _scroll_log_to_bottom = true;
 
-  if (stop)
+  // If the command handler swapped in a fresh context via update_context()
+  // (e.g. "back" re-entering get_navigation_commands()), the loop that's
+  // already running owns displaying that context - don't stop it even though
+  // the command that triggered it looks like a stopping one.
+  if (stop && !_context_refreshed)
     _should_stop_prompting = true;
+}
+
+void SentinelGUI::update_context(GuiDispatch dispatch, const std::string& status_header, const std::string& mode_label)
+{
+  _dispatch = dispatch;
+  _status_header = status_header;
+  _mode_label = mode_label;
+  _context_refreshed = true;
 }
 
 void SentinelGUI::pump_until_command(GuiDispatch dispatch, const std::string& status_header, const std::string& mode_label)
@@ -156,10 +176,21 @@ void SentinelGUI::pump_until_command(GuiDispatch dispatch, const std::string& st
   if (!_window)
     return;
 
+  if (_pumping) {
+    // Reentrant call: a dispatch handler invoked further up the call stack
+    // (still inside submit(), inside the loop below) wants to display a new
+    // context. ImGui doesn't support a nested NewFrame()/Render() cycle within
+    // the same call stack (see ErrorCheckNewFrameSanityChecks), so hand the
+    // context to the already-running loop instead of starting another one.
+    update_context(dispatch, status_header, mode_label);
+    return;
+  }
+
   _dispatch = dispatch;
   _status_header = status_header;
   _mode_label = mode_label;
   _should_stop_prompting = false;
+  _pumping = true;
 
   while (!_should_stop_prompting && !glfwWindowShouldClose(_window)) {
     glfwPollEvents();
@@ -175,7 +206,7 @@ void SentinelGUI::pump_until_command(GuiDispatch dispatch, const std::string& st
     float left_w = W - right_w;
     float trail_h = H * 0.32f;
     float bottom_h = H - trail_h;
-    float var_w = left_w * 0.5f;
+    float var_w = left_w * 0.3f;
     float clause_w = left_w - var_w;
     float command_h = H * 0.65f;
 
@@ -221,6 +252,8 @@ void SentinelGUI::pump_until_command(GuiDispatch dispatch, const std::string& st
     glfwSwapBuffers(_window);
   }
 
+  _pumping = false;
+
   if (!_should_stop_prompting && glfwWindowShouldClose(_window)) {
     // Window closed via the OS [x] button rather than a command: treat it like
     // the built-in "quit" command for a consistent shutdown path.
@@ -246,9 +279,14 @@ void SentinelGUI::render_trail_panel()
     }
   }
 
-  const float col_width = 56.0f;
+  // Cell width: sign (1) + floor(log10(max_var))+1 digits + locked '*' (1).
+  size_t n_vars = _state->variables_size();
+  int n_digits = (n_vars <= 2) ? 1 : (int)std::floor(std::log10((double)(n_vars - 1))) + 1;
+  std::string sample((size_t)(n_digits + 3), '0');
+  float col_width = ImGui::CalcTextSize(sample.c_str()).x + ImGui::GetStyle().CellPadding.x * 2.0f;
+
   float avail_w = std::max(ImGui::GetContentRegionAvail().x - 60.0f, col_width);
-  int visible_cols = std::max(1, (int)(avail_w / col_width));
+  int visible_cols = std::max(2, (int)(avail_w / col_width));
 
   int max_offset = (int)trail_size > visible_cols ? (int)trail_size - visible_cols : 0;
   if (max_offset > 0) {
@@ -259,11 +297,17 @@ void SentinelGUI::render_trail_panel()
   }
   _trail_offset = std::min(std::max(_trail_offset, 0), max_offset);
 
-  ImGui::Text("Trail size: %zu, decision level: %d", trail_size, top_level);
-  ImGui::BeginChild("trail_grid", ImVec2(0, 0), true, ImGuiWindowFlags_HorizontalScrollbar);
+  // True when the trail extends beyond the rightmost visible column.
+  bool has_more = (_trail_offset + visible_cols) < (int)trail_size;
 
-  if (ImGui::BeginTable("trail_table", visible_cols + 1,
-        ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingFixedFit)) {
+  ImGui::Text("Trail size: %zu, decision level: %d", trail_size, top_level);
+
+  // ScrollX prevents column squishing when the computed width is slightly off;
+  // the table manages its own scroll region so no child window is needed.
+  float table_h = ImGui::GetContentRegionAvail().y;
+  const ImGuiTableFlags table_flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg
+      | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_ScrollX;
+  if (ImGui::BeginTable("trail_table", visible_cols + 1, table_flags, ImVec2(0, table_h))) {
     ImGui::TableSetupColumn("lvl", ImGuiTableColumnFlags_WidthFixed, 40.0f);
     for (int c = 0; c < visible_cols; c++)
       ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, col_width);
@@ -271,10 +315,15 @@ void SentinelGUI::render_trail_panel()
     for (int lvl = top_level; lvl >= 0; lvl--) {
       ImGui::TableNextRow();
       ImGui::TableNextColumn();
-      ImGui::Text("%d:", lvl);
+      ImGui::Text("%d: (%d)", lvl, (int)_state->level_counters()[lvl]);
 
       for (int c = 0; c < visible_cols; c++) {
         ImGui::TableNextColumn();
+        // Reserve the last column for "..." when the trail overflows to the right.
+        if (c == visible_cols - 1 && has_more) {
+          ImGui::TextDisabled("...");
+          continue;
+        }
         long abs_index = (long)_trail_offset + c;
         bool draw_boundary = (abs_index == boundary_index);
         if (draw_boundary) {
@@ -288,9 +337,22 @@ void SentinelGUI::render_trail_panel()
         }
       }
     }
+
+    // Index row: shows the trail position of each column below level 0.
+    ImGui::TableNextRow();
+    ImGui::TableNextColumn();
+    ImGui::TextDisabled("#");
+    for (int c = 0; c < visible_cols; c++) {
+      ImGui::TableNextColumn();
+      if (c == visible_cols - 1 && has_more)
+        continue;
+      long abs_index = (long)_trail_offset + c;
+      if (abs_index < (long)trail_size)
+        ImGui::TextDisabled("%d", (int)abs_index);
+    }
+
     ImGui::EndTable();
   }
-  ImGui::EndChild();
 }
 
 void SentinelGUI::render_variables_panel()
@@ -317,6 +379,8 @@ void SentinelGUI::render_variables_panel()
     visible_vars.push_back(i);
   }
 
+  bool open_var_detail = false;
+
   ImGui::BeginChild("var_list", ImVec2(0, 0), true);
   ImGuiListClipper clipper;
   clipper.Begin((int)visible_vars.size());
@@ -336,13 +400,20 @@ void SentinelGUI::render_variables_panel()
       std::string row_text = label + " = " + _state->value(var).to_string() + " @ " + _state->level(var).to_string();
       if (ImGui::Selectable(row_text.c_str())) {
         _selected_var = (int)var.value;
-        ImGui::OpenPopup("Variable Detail");
+        open_var_detail = true;
       }
       ImGui::PopStyleColor();
       ImGui::PopID();
     }
   }
   ImGui::EndChild();
+
+  // OpenPopup() and BeginPopupModal() hash the popup ID against the *current*
+  // ID stack, so both must be called from the same ID-stack context (here:
+  // this function's top level, outside the child window / per-row PushID
+  // above) or the modal silently never matches the popup that was opened.
+  if (open_var_detail)
+    ImGui::OpenPopup("Variable Detail");
 
   if (ImGui::BeginPopupModal("Variable Detail", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
     if (_selected_var >= 0)
@@ -381,13 +452,26 @@ void SentinelGUI::render_variable_detail(Tvar var)
     ImGui::TextUnformatted("Reason: lazy");
   else
     ImGui::Text("Reason: %s", _state->reason(var).to_string().c_str());
+
+  ImGui::Separator();
+  ImGui::TextUnformatted("Custom details:");
+  if (!_is_real_time()) {
+    ImGui::TextColored(COLOR_RED, "Not available while navigating history: custom details reflect the live host state and can only be queried in real time.");
+  } else if (!_variable_detail_callback || !*_variable_detail_callback) {
+    ImGui::TextDisabled("No variable detail callback registered (see set_variable_detail_callback).");
+  } else {
+    std::string details = (*_variable_detail_callback)(var);
+    ImGui::TextWrapped("%s", details.c_str());
+  }
 }
 
 void SentinelGUI::render_clauses_panel()
 {
   ImGui::SetNextItemWidth(-1);
-  ImGui::InputTextWithHint("##clause_filter", "filter (variable id)", _clause_filter, sizeof(_clause_filter));
-  std::string filter(_clause_filter);
+  ImGui::InputTextWithHint("##clause_filter", "filter (clause id)", _clause_filter, sizeof(_clause_filter));
+  std::string clause_filter(_clause_filter);
+  ImGui::InputTextWithHint("##clause_var_filter", "filter (variable id)", _clause_var_filter, sizeof(_clause_var_filter));
+  std::string filter(_clause_var_filter);
   ImGui::Checkbox("Show only unit/conflicting/marked clauses", &_clauses_only_relevant);
 
   // Same constraint as the variables panel: pre-filter into a plain index
@@ -396,6 +480,8 @@ void SentinelGUI::render_clauses_panel()
   size_t n_clauses = _state->clauses_size();
   for (unsigned i = 0; i < n_clauses; i++) {
     Tclause cl(i);
+    if (!clause_filter.empty() && !contains_ci(cl.to_string(), clause_filter))
+      continue;
     if (!_state->active(cl))
       continue;
     bool marked = _markers->is_marked(cl);
@@ -410,6 +496,8 @@ void SentinelGUI::render_clauses_panel()
     }
     visible_clauses.push_back(i);
   }
+
+  bool open_clause_detail = false;
 
   ImGui::BeginChild("clause_list", ImVec2(0, 0), true);
   ImGuiListClipper clipper;
@@ -451,12 +539,18 @@ void SentinelGUI::render_clauses_panel()
       ImGui::NewLine();
       if (clicked) {
         _selected_clause = (int)cl.value;
-        ImGui::OpenPopup("Clause Detail");
+        open_clause_detail = true;
       }
       ImGui::PopID();
     }
   }
   ImGui::EndChild();
+
+  // See the matching comment in render_variables_panel(): OpenPopup() must be
+  // called from the same ID-stack context as BeginPopupModal(), not from
+  // inside the per-row PushID/child window above.
+  if (open_clause_detail)
+    ImGui::OpenPopup("Clause Detail");
 
   if (ImGui::BeginPopupModal("Clause Detail", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
     if (_selected_clause >= 0)
@@ -521,6 +615,17 @@ void SentinelGUI::render_clause_detail(Tclause cl)
       }
     }
   }
+
+  ImGui::Separator();
+  ImGui::TextUnformatted("Custom details:");
+  if (!_is_real_time()) {
+    ImGui::TextColored(COLOR_RED, "Not available while navigating history: custom details reflect the live host state and can only be queried in real time.");
+  } else if (!_clause_detail_callback || !*_clause_detail_callback) {
+    ImGui::TextDisabled("No clause detail callback registered (see set_clause_detail_callback).");
+  } else {
+    std::string details = (*_clause_detail_callback)(cl);
+    ImGui::TextWrapped("%s", details.c_str());
+  }
 }
 
 void SentinelGUI::render_command_panel()
@@ -528,33 +633,17 @@ void SentinelGUI::render_command_panel()
   // Mirrors the terminal frontend's "NAVIGATION COMMANDS" / "USER COMMANDS"
   // banners, so it's clear which command path (built-in CommandParser vs.
   // the host application's external_parser) the input field below is feeding.
-  ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.3f, 1.0f), "%s", _mode_label.c_str());
-  ImGui::TextWrapped("%s", _status_header.c_str());
-  ImGui::Separator();
 
-  if (ImGui::Button("Next", ImVec2(80, 0)))
-    submit("next");
-  ImGui::SameLine();
-  if (ImGui::Button("Back", ImVec2(80, 0)))
+  if (ImGui::Button("back", ImVec2(80, 0)))
     submit("back");
+  ImGui::SameLine();
+  if (ImGui::Button("next", ImVec2(80, 0)))
+    submit("next");
   ImGui::SameLine();
   if (ImGui::Button("Help"))
     submit("help");
 
   ImGui::Separator();
-  ImGui::TextUnformatted("Log:");
-  ImGui::BeginChild("command_log", ImVec2(0, -ImGui::GetFrameHeightWithSpacing()), true);
-  for (const LogEntry& entry : _log) {
-    ImGui::PushStyleColor(ImGuiCol_Text, entry.success ? ImVec4(0.75f, 0.75f, 0.75f, 1.0f) : COLOR_RED);
-    ImGui::TextWrapped("%s", entry.text.c_str());
-    ImGui::PopStyleColor();
-  }
-  if (_scroll_log_to_bottom) {
-    ImGui::SetScrollHereY(1.0f);
-    _scroll_log_to_bottom = false;
-  }
-  ImGui::EndChild();
-
   const char* hint = (_mode_label == "USER COMMANDS")
     ? "Enter a user command (external_parser)..."
     : "Enter a navigation command...";
@@ -567,6 +656,39 @@ void SentinelGUI::render_command_panel()
     _command_buf[0] = '\0';
     ImGui::SetKeyboardFocusHere(-1);
   }
+
+  ImGui::Separator();
+  ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.3f, 1.0f), "%s", _mode_label.c_str());
+  ImGui::TextWrapped("%s", _status_header.c_str());
+  ImGui::Separator();
+
+  ImGui::TextUnformatted("Log:");
+  ImGui::BeginChild("command_log", ImVec2(0, -ImGui::GetFrameHeightWithSpacing()), true);
+  for (unsigned i = 0; i < _log.size(); i++) {
+    const LogEntry& entry = _log[i];
+    // check how many entries are identical and following this one
+    unsigned count = 1;
+    for (unsigned j = i + 1; j < _log.size(); j++) {
+      if (_log[j].text == entry.text && _log[j].success == entry.success)
+        count++;
+      else
+        break;
+    }
+    if (count > 1) {
+      ImGui::TextDisabled("%s (x%u)", entry.text.c_str(), count);
+      i += count - 1;
+      continue;
+    }
+
+    ImGui::PushStyleColor(ImGuiCol_Text, entry.success ? ImVec4(0.75f, 0.75f, 0.75f, 1.0f) : COLOR_RED);
+    ImGui::TextWrapped("%s", entry.text.c_str());
+    ImGui::PopStyleColor();
+  }
+  if (_scroll_log_to_bottom) {
+    ImGui::SetScrollHereY(1.0f);
+    _scroll_log_to_bottom = false;
+  }
+  ImGui::EndChild();
 }
 
 int SentinelGUI::command_text_edit_callback(ImGuiInputTextCallbackData* data)

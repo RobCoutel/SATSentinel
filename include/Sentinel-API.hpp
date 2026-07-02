@@ -295,6 +295,24 @@ namespace sentinel
                           Tparser* parser);
 
   /**
+   * @brief Registers a callback function to provide detailed information about a variable.
+   * @param sentinel Sentinel instance.
+   * @param callback Function that takes a variable and returns a string with detailed information.
+   * @pre callback is a valid function that returns a string representation of the variable's details.
+   */
+  void set_variable_detail_callback(SATSentinel* sentinel,
+                                    std::function<std::string(Tvar)> callback);
+
+  /**
+   * @brief Registers a callback function to provide detailed information about a clause.
+   * @param sentinel Sentinel instance.
+   * @param callback Function that takes a clause and returns a string with detailed information.
+   * @pre callback is a valid function that returns a string representation of the clause's details.
+   */
+  void set_clause_detail_callback(SATSentinel* sentinel,
+                                  std::function<std::string(Tclause)> callback);
+
+  /**
    * @brief Registers a custom invariant checker.
    * @param sentinel Sentinel instance.
    * @param custom_checker Function that checks the invariant. It should return true if the invariant holds, and false otherwise. If the invariant fails, it should set the error message in the provided string reference.

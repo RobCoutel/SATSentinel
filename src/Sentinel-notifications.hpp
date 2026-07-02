@@ -178,7 +178,6 @@ namespace sentinel::notif
      */
     Tlevel level = LEVEL_UNDEF;
     Tlevel old_level = LEVEL_UNDEF;
-    bool deleted_level = false;
 
   public:
     static const unsigned DEFAULT_LEVEL = 5;
@@ -285,8 +284,6 @@ namespace sentinel::notif
      */
     SentinelState::variable var;
 
-    bool deleted_level = false;
-
   public:
     static const unsigned DEFAULT_LEVEL = 4;
     static const ENotifType NTYPE = UNASSIGNMENT;
@@ -381,6 +378,8 @@ namespace sentinel::notif
      */
     Tlit lit;
 
+    unsigned index = 0;
+
   public:
     static const unsigned DEFAULT_LEVEL = 9;
     static const ENotifType NTYPE = WATCH;
@@ -409,6 +408,8 @@ namespace sentinel::notif
     Tlit lit;
 
     Tlit previous_blocker = LIT_UNDEF;
+
+    unsigned index = 0;
 
   public:
     static const unsigned DEFAULT_LEVEL = 9;

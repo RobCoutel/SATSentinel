@@ -53,7 +53,7 @@ public:
   inline Tclause& reason(Tlit lit)       { return reason(lit.var()); }
   inline Tclause  reason(Tlit lit) const { return reason(lit.var()); }
 
-  inline bool decision(Tvar var) const { return value(var) != VAR_UNDEF && reason(var) == CLAUSE_UNDEF; }
+  inline bool decision(Tvar var) const { return value(var) != VAL_UNDEF && reason(var) == CLAUSE_UNDEF; }
   inline bool decision(Tlit lit) const { return decision(lit.var()); }
   inline bool lazy(Tvar var) const     { return reason(var) == CLAUSE_LAZY; }
   inline bool lazy(Tlit lit) const     { return lazy(lit.var()); }
@@ -112,7 +112,7 @@ public:
   inline Tlevel level() const { return _level_counters.size() - 1; }
 
   bool decrement_level_counter(Tlevel level);
-  void increment_level_counter(Tlevel level, bool create = false);
+  void increment_level_counter(Tlevel level);
 
   /** INVARIANTS **/
   bool check_invariants(std::string &err_msg, bool check_watch_literals = true) const;
@@ -144,7 +144,7 @@ public:
     variable() = default;
     variable(Tvar var) : var(var) {}
     Tvar var;
-    Tval value = VAR_UNDEF;
+    Tval value = VAL_UNDEF;
     Tlevel level = LEVEL_UNDEF;
     Tclause reason = CLAUSE_UNDEF;
     bool active = false;
@@ -197,6 +197,8 @@ public:
 
   // for each level, keeps track of the number of literals assigned at this level.
   std::vector<unsigned> _level_counters;
+
+  const std::vector<unsigned>& level_counters() const { return _level_counters; }
 
   private:
   void register_invariants();

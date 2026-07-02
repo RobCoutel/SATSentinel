@@ -151,6 +151,18 @@ namespace sentinel
     sentinel->set_command_parser(parser);
   }
 
+  void set_variable_detail_callback(SATSentinel* sentinel, std::function<std::string(Tvar)> callback)
+  {
+    assert(sentinel);
+    sentinel->set_variable_detail_callback(callback);
+  }
+
+  void set_clause_detail_callback(SATSentinel* sentinel, std::function<std::string(Tclause)> callback)
+  {
+    assert(sentinel);
+    sentinel->set_clause_detail_callback(callback);
+  }
+
   void add_invariant(SATSentinel* sentinel, std::function<bool(std::string&)> custom_checker, const std::string& name)
   {
     sentinel->add_invariant(new Invariant(name, custom_checker));

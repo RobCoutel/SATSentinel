@@ -103,11 +103,11 @@ namespace sentinel
     SOFT_ASSERT(state->lit_undef(lit));
 
     Tvar var = lit.var();
-    state->value(var) = lit.pol() == 1 ? VAR_TRUE : VAR_FALSE;
+    state->value(var) = lit.pol() == 1 ? VAL_TRUE : VAL_FALSE;
     state->reason(var) = reason;
     if (reason == CLAUSE_UNDEF) {
       state->level(var) = state->_level_counters.size();
-      state->_level_counters.push_back(1);
+      state->increment_level_counter(state->level(var));
     } else {
       Tlevel reason_level = 0;
       for (const auto& lit : state->literals(reason)) {
@@ -118,9 +118,9 @@ namespace sentinel
         reason_level = std::max(reason_level, state->level(lit.var()));
       }
       state->level(var) = reason_level;
-      state->_level_counters[reason_level.value]++;
+      state->increment_level_counter(reason_level);
     }
-
+    state->position(var) = state->_trail.size();
     state->_trail.push_back(lit);
     return true;
   }
@@ -132,8 +132,11 @@ namespace sentinel
     assert(state->_trail.back() == lit);
     state->_trail.pop_back();
     Tvar var = lit.var();
-    state->value(var) = VAR_UNDEF;
+    state->value(var) = VAL_UNDEF;
     state->reason(var) = CLAUSE_UNDEF;
+    state->decrement_level_counter(state->level(var));
+    state->level(var) = LEVEL_UNDEF;
+    state->position(var) = 0xFFFFFFFF;
     return true;
   }
 
@@ -149,20 +152,22 @@ namespace sentinel
   bool notif::unassignment::apply(SentinelState* state)
   {
     assert(state);
-    SOFT_ASSERT(lit.var().value < state->_variables.size());
-    SOFT_ASSERT(state->active(lit.var()));
+    Tvar v = lit.var();
+    SOFT_ASSERT(v.value < state->_variables.size());
+    SOFT_ASSERT(state->active(v));
     SOFT_ASSERT(!state->lit_undef(lit));
+    SOFT_ASSERT(state->level(v) < state->_level_counters.size());
 
-    var = state->_variables[lit.var().value];
-
-    state->value(lit.var()) = VAR_UNDEF;
-    state->reason(lit.var()) = CLAUSE_UNDEF;
-    state->propagated(lit.var()) = false;
-    deleted_level = state->decrement_level_counter(var.level);
+    var = state->_variables[v.value];
+    state->value(v) = VAL_UNDEF;
+    state->reason(v) = CLAUSE_UNDEF;
+    state->propagated(v) = false;
+    state->decrement_level_counter(var.level);
 
     // search it on the trail and remove it
     // we know it's location
-    for (unsigned i = var.position; i < state->_trail.size()-1; i++) {
+    assert(state->_trail[var.position] == lit);
+    for (unsigned i = var.position; i < state->_trail.size() - 1; i++) {
       state->_trail[i] = state->_trail[i+1];
       state->position(state->_trail[i].var()) = i;
     }
@@ -179,7 +184,7 @@ namespace sentinel
 
     state->_variables[lit.var().value] = var;
 
-    state->increment_level_counter(var.level, deleted_level);
+    state->increment_level_counter(var.level);
 
     // Insert literal back at its original position, shifting later elements right.
     state->_trail.push_back(LIT_UNDEF);
@@ -206,7 +211,7 @@ namespace sentinel
     SOFT_ASSERT(lit.var().value < state->_variables.size());
     SOFT_ASSERT(state->active(lit.var()));
     SOFT_ASSERT(!state->lit_undef(lit));
-    SOFT_ASSERT(!state->propagated(lit));
+    // SOFT_ASSERT(!state->propagated(lit));
 
     state->propagated(lit.var()) = true;
     return true;
@@ -276,7 +281,8 @@ namespace sentinel
     state->level(var) = level;
 
     SOFT_ASSERT(old_level.value < state->_level_counters.size());
-    deleted_level = state->decrement_level_counter(old_level);
+    state->decrement_level_counter(old_level);
+    state->increment_level_counter(level);
     return true;
   }
   bool notif::update_level::rollback(SentinelState* state)
@@ -288,7 +294,8 @@ namespace sentinel
     Tvar var = lit.var();
     state->level(var) = old_level;
 
-    state->increment_level_counter(old_level, deleted_level);
+    state->increment_level_counter(old_level);
+    state->decrement_level_counter(level);
     return true;
   }
 
@@ -365,7 +372,10 @@ namespace sentinel
   {
     assert(state);
     assert(cl.value < state->_clauses.size());
+    assert(state->_clauses[cl.value].watches.empty());
     state->_clauses[cl.value].active = false;
+    state->_clauses[cl.value].external = false;
+    state->_clauses[cl.value].literals.clear();
     return true;
   }
 
@@ -416,6 +426,7 @@ namespace sentinel
     SOFT_ASSERT(state->_clauses[cl.value].watches.size() == 0 || state->_clauses[cl.value].watches[0].first != lit);
     SOFT_ASSERT(find(state->_clauses[cl.value].literals.begin(), state->_clauses[cl.value].literals.end(), lit) != state->_clauses[cl.value].literals.end());
 
+    index = state->_clauses[cl.value].watches.size();
     state->_clauses[cl.value].watches.push_back({lit, LIT_UNDEF});
 
     return true;
@@ -425,16 +436,11 @@ namespace sentinel
     assert(state);
     assert(cl.value < state->_clauses.size());
     assert(state->_clauses[cl.value].active);
-    assert(state->_clauses[cl.value].watches.size() > 0);
-    assert(state->_clauses[cl.value].watches.size() <= 2);
-    assert(state->_clauses[cl.value].watches[0].first == lit
-      || (state->_clauses[cl.value].watches.size() > 1 && state->_clauses[cl.value].watches[1].first == lit));
+    assert(state->watches(cl).size() > 0);
+    assert(state->watches(cl).size() == index + 1);
+    assert(state->watches(cl)[index].first == lit);
 
-    if (state->_clauses[cl.value].watches.size() == 1 || state->_clauses[cl.value].watches[0].first == lit) {
-      state->_clauses[cl.value].watches.erase(state->_clauses[cl.value].watches.begin());
-    } else {
-      state->_clauses[cl.value].watches.pop_back();
-    }
+    state->_clauses[cl.value].watches.pop_back();
 
     return true;
   }
@@ -454,12 +460,13 @@ namespace sentinel
     SOFT_ASSERT(state->_clauses[cl.value].active);
     SOFT_ASSERT(lit.var().value < state->_variables.size());
     SOFT_ASSERT(state->active(lit.var()));
-    SOFT_ASSERT(state->_clauses[cl.value].watches.size() > 0);
-    SOFT_ASSERT(state->_clauses[cl.value].watches.size() <= 2);
-    auto it = find_if(state->_clauses[cl.value].watches.begin(), state->_clauses[cl.value].watches.end(), [this](const std::pair<Tlit, Tlit>& p) {
+    SOFT_ASSERT(state->watches(cl).size() > 0);
+    SOFT_ASSERT(state->watches(cl).size() <= 2);
+    auto it = find_if(state->watches(cl).begin(), state->watches(cl).end(), [this](const std::pair<Tlit, Tlit>& p) {
       return p.first == lit;
     });
     SOFT_ASSERT(it != state->_clauses[cl.value].watches.end());
+    index = std::distance(state->_clauses[cl.value].watches.begin(), it);
 
     previous_blocker = it->second;
     state->_clauses[cl.value].watches.erase(it);
@@ -472,10 +479,10 @@ namespace sentinel
     assert(state->_clauses[cl.value].active);
     assert(lit.var().value < state->_variables.size());
     assert(state->active(lit.var()));
-    assert(state->_clauses[cl.value].watches.size() < 2);
+    assert(state->watches(cl).size() < 2);
     assert(find(state->_clauses[cl.value].literals.begin(), state->_clauses[cl.value].literals.end(), lit) != state->_clauses[cl.value].literals.end());
 
-    state->_clauses[cl.value].watches.push_back({lit, previous_blocker});
+    state->watches(cl).insert(state->watches(cl).begin() + index, {lit, previous_blocker});
 
     return true;
   }

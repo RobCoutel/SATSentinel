@@ -74,8 +74,22 @@ namespace sentinel
      * the current value and, when the user edits it, submits a "set level N"
      * command through the dispatch path (the same mechanism the existing
      * terminal "set level" navigation command uses).
+     * @param variable_detail_callback Read-only pointer to SATSentinel's live
+     * variable-detail callback slot. Stored as a pointer (rather than by value)
+     * because it may be registered via set_variable_detail_callback() after the
+     * GUI is constructed. May point to an empty std::function if the host never
+     * registered a callback.
+     * @param clause_detail_callback Same as variable_detail_callback, but for
+     * clauses (see set_clause_detail_callback()).
+     * @param is_real_time Predicate reporting whether the sentinel is currently
+     * at the head of the notification history (as opposed to having stepped
+     * backward via "back"). The callback reflects live host-application state,
+     * which is only meaningful in real time.
      */
-    SentinelGUI(const SentinelState* state, const SentinelMarker* markers, SentinelOptions* options, const unsigned* display_level);
+    SentinelGUI(const SentinelState* state, const SentinelMarker* markers, SentinelOptions* options, const unsigned* display_level,
+                const std::function<std::string(Tvar)>* variable_detail_callback,
+                const std::function<std::string(Tclause)>* clause_detail_callback,
+                std::function<bool()> is_real_time);
     ~SentinelGUI();
 
     SentinelGUI(const SentinelGUI&) = delete;
@@ -102,6 +116,18 @@ namespace sentinel
     void pump_until_command(GuiDispatch dispatch, const std::string& status_header, const std::string& mode_label);
 
   private:
+    /**
+     * @brief Swaps in a new dispatch/header/mode for the frame loop that is
+     * already running, without touching ImGui/GLFW state.
+     * @details Used when pump_until_command() is invoked reentrantly - e.g. the
+     * "back" command handler calls back into SATSentinel::get_navigation_commands()
+     * while still inside the submit() call that dispatched it. ImGui does not
+     * support a nested NewFrame()/Render() cycle within the same call stack, so
+     * the reentrant call must feed its context to the outer loop instead of
+     * starting a second one.
+     */
+    void update_context(GuiDispatch dispatch, const std::string& status_header, const std::string& mode_label);
+
     void render_trail_panel();
     void render_variables_panel();
     void render_clauses_panel();
@@ -119,10 +145,15 @@ namespace sentinel
     const SentinelMarker* _markers;
     SentinelOptions* _options;
     const unsigned* _display_level;
+    const std::function<std::string(Tvar)>* _variable_detail_callback;
+    const std::function<std::string(Tclause)>* _clause_detail_callback;
+    std::function<bool()> _is_real_time;
 
     GLFWwindow* _window = nullptr;
     GuiDispatch _dispatch;
     bool _should_stop_prompting = false;
+    bool _pumping = false;             // true for the whole body of the active pump_until_command() call
+    bool _context_refreshed = false;   // set by update_context() during the current submit()
     std::string _status_header;
     std::string _mode_label;
 
@@ -135,6 +166,7 @@ namespace sentinel
 
     // clauses panel
     char _clause_filter[64] = "";
+    char _clause_var_filter[64] = "";
     int _selected_clause = -1;
     bool _clauses_only_relevant = false;
 

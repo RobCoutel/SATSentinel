@@ -44,7 +44,9 @@ SATSentinel::SATSentinel(SentinelOptions* options)
 
 #ifdef SENTINEL_GUI_ENABLED
   if (_options->gui) {
-    gui_view = new SentinelGUI(state, markers, _options, &display_level);
+    gui_view = new SentinelGUI(state, markers, _options, &display_level,
+                                &_variable_detail_callback, &_clause_detail_callback,
+                                [this]() { return is_real_time(); });
     if (!gui_view->is_valid()) {
       std::cout << WARNING_HEAD << "Failed to initialize the GUI (no display / GLFW init failure?); falling back to the terminal frontend." << std::endl;
       delete gui_view;
@@ -84,7 +86,7 @@ bool SATSentinel::next()
   bool display_state = false;
   while (current_notification_index < notifications.size()) {
     notif::notification* notif = notifications[current_notification_index++];
-    bool success = notif->apply(state);
+    success = notif->apply(state);
     if (success && notif->get_event_level(markers) > display_level) {
       continue;
     }
@@ -109,6 +111,12 @@ bool SATSentinel::next()
 bool SATSentinel::back()
 {
   if (current_notification_index == 0) {
+    // Nothing to roll back to; re-display the current (start-of-history) state
+    // instead of silently returning, so the GUI/terminal prompt loop keeps
+    // running rather than being torn down as if a stopping command ran.
+    if (!_options->check_only) {
+      get_navigation_commands();
+    }
     return true;
   }
   bool success = true;
@@ -126,8 +134,8 @@ bool SATSentinel::back()
     display_state = true;
     break;
   }
-  if (display_state) {
-    get_external_commands();
+  if (display_state && !_options->check_only) {
+    get_navigation_commands();
   }
   return success;
 }

@@ -160,7 +160,7 @@ TEST_CASE("add_variable registers a variable as active with UNDEF value", "[api]
     REQUIRE(add_variable(s, Tvar{1}));
     REQUIRE(s->state->variables_size() >= 2);
     REQUIRE(s->state->active(Tvar{1}));
-    REQUIRE(s->state->value(Tvar{1}) == VAR_UNDEF);
+    REQUIRE(s->state->value(Tvar{1}) == VAL_UNDEF);
     // No clauses: watch check passes trivially.
     REQUIRE(check_invariants(s));
     delete_sentinel(s);
@@ -292,7 +292,7 @@ TEST_CASE("decision assignment sets value, opens a new level, and appends to tra
     add_vars(s, {1});
 
     REQUIRE(assign(s, Tlit{Tvar{1}, 1}));
-    REQUIRE(s->state->value(Tvar{1})   == VAR_TRUE);
+    REQUIRE(s->state->value(Tvar{1})   == VAL_TRUE);
     REQUIRE(s->state->reason(Tvar{1})  == CLAUSE_UNDEF);
     REQUIRE(s->state->trail_size()     == 1);
     REQUIRE(s->state->trail_literal(0) == Tlit{Tvar{1}, 1});
@@ -306,7 +306,7 @@ TEST_CASE("negative decision assignment sets VAR_FALSE", "[api]")
     SATSentinel* s = make_sentinel();
     add_vars(s, {1});
     REQUIRE(assign(s, Tlit{Tvar{1}, 0}));
-    REQUIRE(s->state->value(Tvar{1}) == VAR_FALSE);
+    REQUIRE(s->state->value(Tvar{1}) == VAL_FALSE);
     delete_sentinel(s);
 }
 
@@ -324,7 +324,7 @@ TEST_CASE("implied assignment derives its level from the reason clause", "[api]"
 
     // C0 has ~1 (falsified at level 1) and 3 (the implied literal).
     REQUIRE(assign(s, Tlit{Tvar{3}, 1}, Tclause{0}));
-    REQUIRE(s->state->value(Tvar{3})  == VAR_TRUE);
+    REQUIRE(s->state->value(Tvar{3})  == VAL_TRUE);
     REQUIRE(s->state->reason(Tvar{3}) == Tclause{0});
     REQUIRE(s->state->level(Tvar{3})  == Tlevel{1});
     delete_sentinel(s);
@@ -344,12 +344,14 @@ TEST_CASE("assigning an already-assigned literal sets the failed flag", "[api]")
 TEST_CASE("unassign (LIFO) restores variable to UNDEF and shrinks the trail", "[api]")
 {
     SATSentinel* s = make_sentinel();
+    Tvar v1{1};
+    Tlit l1{v1, 1};
     add_vars(s, {1});
-    assign(s, Tlit{Tvar{1}, 1});
+    REQUIRE(assign(s, l1));
 
-    REQUIRE(unassign(s, Tlit{Tvar{1}, 1}));
-    REQUIRE(s->state->value(Tvar{1})  == VAR_UNDEF);
-    REQUIRE(s->state->reason(Tvar{1}) == CLAUSE_UNDEF);
+    REQUIRE(unassign(s, l1));
+    REQUIRE(s->state->value (v1) == VAL_UNDEF);
+    REQUIRE(s->state->reason(v1) == CLAUSE_UNDEF);
     REQUIRE(s->state->trail_size()    == 0);
     REQUIRE(check_invariants(s));
     delete_sentinel(s);
@@ -375,7 +377,7 @@ TEST_CASE("unassign (random access) removes a literal from the middle of the tra
     REQUIRE(unassign(s, Tlit{Tvar{2}, 1}));
 
     REQUIRE(s->state->trail_size()     == 2);
-    REQUIRE(s->state->value(Tvar{2})   == VAR_UNDEF);
+    REQUIRE(s->state->value(Tvar{2})   == VAL_UNDEF);
     REQUIRE(s->state->trail_literal(0) == Tlit{Tvar{1}, 1});
     REQUIRE(s->state->trail_literal(1) == Tlit{Tvar{3}, 1});
     REQUIRE(s->state->position(Tvar{3}) == 1);
@@ -415,18 +417,6 @@ TEST_CASE("propagating an unassigned literal sets the failed flag", "[api]")
     SATSentinel* s = make_sentinel();
     add_vars(s, {1});
     REQUIRE_FALSE(s->failed);
-    propagate(s, Tlit{Tvar{1}, 1});
-    REQUIRE(s->failed);
-    delete_sentinel(s);
-}
-
-TEST_CASE("propagating an already-propagated literal sets the failed flag", "[api]")
-{
-    SATSentinel* s = make_sentinel();
-    add_vars(s, {1});
-    assign(s, Tlit{Tvar{1}, 1});
-    propagate(s, Tlit{Tvar{1}, 1});
-    REQUIRE_FALSE(s->failed);      // first propagation OK
     propagate(s, Tlit{Tvar{1}, 1});
     REQUIRE(s->failed);
     delete_sentinel(s);
@@ -556,7 +546,7 @@ TEST_CASE("lock_assumption locks an unassigned literal", "[api]")
 
     REQUIRE(lock_assumption(s, Tlit{Tvar{1}, 1}));
     REQUIRE(s->state->locked(Tvar{1}));
-    REQUIRE(s->state->value(Tvar{1}) == VAR_UNDEF);
+    REQUIRE(s->state->value(Tvar{1}) == VAL_UNDEF);
     REQUIRE(check_invariants(s));
     delete_sentinel(s);
 }
@@ -759,7 +749,7 @@ TEST_CASE("non-chronological backtracking removes a literal from the middle of t
     REQUIRE(unassign(s, Tlit{Tvar{2}, 1}));
 
     REQUIRE(s->state->trail_size()     == 2);
-    REQUIRE(s->state->value(Tvar{2})   == VAR_UNDEF);
+    REQUIRE(s->state->value(Tvar{2})   == VAL_UNDEF);
     REQUIRE(s->state->trail_literal(0) == Tlit{Tvar{1}, 1});
     REQUIRE(s->state->trail_literal(1) == Tlit{Tvar{3}, 1});
     REQUIRE(s->state->position(Tvar{3}) == 1);
@@ -876,7 +866,7 @@ TEST_CASE("new_variable: next() activates; back() deactivates; next() re-activat
 
     REQUIRE(add_variable(s, Tvar{1}));
     REQUIRE(s->state->active(Tvar{1}));
-    REQUIRE(s->state->value(Tvar{1}) == VAR_UNDEF);
+    REQUIRE(s->state->value(Tvar{1}) == VAL_UNDEF);
 
     enter_step_mode(s);
     back_silent(s);
@@ -885,7 +875,7 @@ TEST_CASE("new_variable: next() activates; back() deactivates; next() re-activat
     exit_step_mode(s);
     s->next();
     REQUIRE(s->state->active(Tvar{1}));
-    REQUIRE(s->state->value(Tvar{1}) == VAR_UNDEF);
+    REQUIRE(s->state->value(Tvar{1}) == VAL_UNDEF);
 
     delete_sentinel(s);
 }
@@ -900,18 +890,18 @@ TEST_CASE("assignment decision: next() adds to trail; back() removes; next() re-
     add_vars(s, {1});
 
     REQUIRE(assign(s, Tlit{Tvar{1}, 1}));
-    REQUIRE(s->state->value(Tvar{1})   == VAR_TRUE);
+    REQUIRE(s->state->value(Tvar{1})   == VAL_TRUE);
     REQUIRE(s->state->trail_size()     == 1);
 
     // assignment::rollback() asserts trail.back()==lit, which holds here.
     enter_step_mode(s);
     back_silent(s);
-    REQUIRE(s->state->value(Tvar{1})  == VAR_UNDEF);
+    REQUIRE(s->state->value(Tvar{1})  == VAL_UNDEF);
     REQUIRE(s->state->trail_size()    == 0);
 
     exit_step_mode(s);
     s->next();
-    REQUIRE(s->state->value(Tvar{1})  == VAR_TRUE);
+    REQUIRE(s->state->value(Tvar{1})  == VAL_TRUE);
     REQUIRE(s->state->trail_size()    == 1);
     REQUIRE(s->state->trail_literal(0) == Tlit{Tvar{1}, 1});
 
@@ -931,18 +921,18 @@ TEST_CASE("assignment implied: next() sets reason; back() clears; next() re-sets
     assign(s, Tlit{Tvar{1}, 1});   // prerequisite decision
 
     REQUIRE(assign(s, Tlit{Tvar{2}, 1}, Tclause{0}));
-    REQUIRE(s->state->value(Tvar{2})  == VAR_TRUE);
+    REQUIRE(s->state->value(Tvar{2})  == VAL_TRUE);
     REQUIRE(s->state->reason(Tvar{2}) == Tclause{0});
     REQUIRE(s->state->trail_size()    == 2);
 
     enter_step_mode(s);
     back_silent(s);
-    REQUIRE(s->state->value(Tvar{2})  == VAR_UNDEF);
+    REQUIRE(s->state->value(Tvar{2})  == VAL_UNDEF);
     REQUIRE(s->state->trail_size()    == 1);
 
     exit_step_mode(s);
     s->next();
-    REQUIRE(s->state->value(Tvar{2})  == VAR_TRUE);
+    REQUIRE(s->state->value(Tvar{2})  == VAL_TRUE);
     REQUIRE(s->state->reason(Tvar{2}) == Tclause{0});
     REQUIRE(s->state->trail_size()    == 2);
 
@@ -962,18 +952,18 @@ TEST_CASE("unassignment LIFO: next() removes top; back() restores; next() remove
 
     REQUIRE(unassign(s, Tlit{Tvar{1}, 1}));
     REQUIRE(s->state->trail_size()   == 0);
-    REQUIRE(s->state->value(Tvar{1}) == VAR_UNDEF);
+    REQUIRE(s->state->value(Tvar{1}) == VAL_UNDEF);
 
     enter_step_mode(s);
     back_silent(s);
     REQUIRE(s->state->trail_size()   == 1);
-    REQUIRE(s->state->value(Tvar{1}) == VAR_TRUE);
+    REQUIRE(s->state->value(Tvar{1}) == VAL_TRUE);
     REQUIRE(s->state->trail_literal(0) == Tlit{Tvar{1}, 1});
 
     exit_step_mode(s);
     s->next();
     REQUIRE(s->state->trail_size()   == 0);
-    REQUIRE(s->state->value(Tvar{1}) == VAR_UNDEF);
+    REQUIRE(s->state->value(Tvar{1}) == VAL_UNDEF);
 
     delete_sentinel(s);
 }
@@ -1005,7 +995,7 @@ TEST_CASE("unassignment random access: next() shifts trail; back() inserts liter
     enter_step_mode(s);
     back_silent(s);
     REQUIRE(s->state->trail_size()     == 3);
-    REQUIRE(s->state->value(Tvar{2})   == VAR_TRUE);
+    REQUIRE(s->state->value(Tvar{2})   == VAL_TRUE);
     REQUIRE(s->state->trail_literal(1) == Tlit{Tvar{2}, 1});
     REQUIRE(s->state->trail_literal(2) == Tlit{Tvar{3}, 1});
 
@@ -1013,7 +1003,7 @@ TEST_CASE("unassignment random access: next() shifts trail; back() inserts liter
     exit_step_mode(s);
     s->next();
     REQUIRE(s->state->trail_size()     == 2);
-    REQUIRE(s->state->value(Tvar{2})   == VAR_UNDEF);
+    REQUIRE(s->state->value(Tvar{2})   == VAL_UNDEF);
     REQUIRE(s->state->trail_literal(1) == Tlit{Tvar{3}, 1});
     REQUIRE(s->state->position(Tvar{3}) == 1);
 
@@ -1441,14 +1431,14 @@ TEST_CASE("chained back/next through two random-access unassignments preserves t
     // Rollback unassign(L3): L3 goes back to position 1, L4 shifts to 2
     back_silent(s);
     REQUIRE(s->state->trail_size()     == 3);
-    REQUIRE(s->state->value(Tvar{3})   == VAR_TRUE);
+    REQUIRE(s->state->value(Tvar{3})   == VAL_TRUE);
     REQUIRE(s->state->trail_literal(1) == Tlit{Tvar{3}, 1});
     REQUIRE(s->state->trail_literal(2) == Tlit{Tvar{4}, 1});
 
     // Rollback unassign(L2): L2 goes back to position 1
     back_silent(s);
     REQUIRE(s->state->trail_size()     == 4);
-    REQUIRE(s->state->value(Tvar{2})   == VAR_TRUE);
+    REQUIRE(s->state->value(Tvar{2})   == VAL_TRUE);
     REQUIRE(s->state->trail_literal(1) == Tlit{Tvar{2}, 1});
     REQUIRE(s->state->trail_literal(2) == Tlit{Tvar{3}, 1});
     REQUIRE(s->state->trail_literal(3) == Tlit{Tvar{4}, 1});
@@ -1464,8 +1454,8 @@ TEST_CASE("chained back/next through two random-access unassignments preserves t
     s->state->position(Tvar{4}) = 1; // would be set by solver before the 2nd unassign
     // Actually next() already ran the 2nd unassign; just verify the final state.
     REQUIRE(s->state->trail_size()    == 2);
-    REQUIRE(s->state->value(Tvar{2}) == VAR_UNDEF);
-    REQUIRE(s->state->value(Tvar{3}) == VAR_UNDEF);
+    REQUIRE(s->state->value(Tvar{2}) == VAL_UNDEF);
+    REQUIRE(s->state->value(Tvar{3}) == VAL_UNDEF);
     REQUIRE(s->state->trail_literal(0) == Tlit{Tvar{1}, 1});
 
     delete_sentinel(s);

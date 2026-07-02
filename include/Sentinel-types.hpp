@@ -79,7 +79,7 @@ namespace sentinel
     inline Tlit operator~() const { return Tlit(value ^ 1); }
     inline Tvar var() const { return Tvar(value >> 1); }
     inline bool pol() const { return value & 1; }
-    inline std::string to_string() const { return (pol() ? "" : "~") + std::to_string(var().value); }
+    inline std::string to_string() const { return (pol() ? "" : "~") + var().to_string(); }
     inline std::ostream& operator<<(std::ostream& os) const { os << to_string(); return os; }
 
     inline bool satisfied(Tval val) const { return !(pol() ^ val.value); }
@@ -141,10 +141,10 @@ namespace sentinel
 
   const Tlit LIT_UNDEF = 0;
 
-  const Tval VAR_FALSE = 0;
-  const Tval VAR_TRUE  = 1;
-  const Tval VAR_UNDEF = 2;
-  const Tval VAR_ERROR = 3;
+  const Tval VAL_FALSE = 0;
+  const Tval VAL_TRUE  = 1;
+  const Tval VAL_UNDEF = 2;
+  const Tval VAL_ERROR = 3;
 
   const Tlevel LEVEL_ROOT  = 0;
   const Tlevel LEVEL_UNDEF = 0xFFFFFFFF;
@@ -158,6 +158,9 @@ namespace sentinel
 
 namespace std {
   // define to to_string for Tvar, Tlit, Tlevel, Tclause
+  inline std::string to_string(const sentinel::Tval& val) {
+      return val.to_string();
+  }
   inline std::string to_string(const sentinel::Tvar& var) {
       return var.to_string();
   }
@@ -172,6 +175,9 @@ namespace std {
   }
 
   // define operator<< for Tvar, Tlit, Tlevel, Tclause
+  inline std::ostream& operator<<(std::ostream& os, const sentinel::Tval& val) {
+      return os << val.to_string();
+  }
   inline std::ostream& operator<<(std::ostream& os, const sentinel::Tvar& var) {
       return os << var.to_string();
   }

@@ -19,6 +19,7 @@
 #include "Sentinel-context.hpp"
 #include "Sentinel-commands.hpp"
 
+#include <functional>
 #include <set>
 #include <vector>
 #include <string>
@@ -60,6 +61,10 @@ namespace sentinel
 
     void set_alias(Tvar var, std::string alias) { state->alias(var) = alias; }
 
+    void set_variable_detail_callback(std::function<std::string(Tvar)> callback) { _variable_detail_callback = callback; }
+
+    void set_clause_detail_callback(std::function<std::string(Tclause)> callback) { _clause_detail_callback = callback; }
+
     void set_command_parser(Tparser* parser);
 
     bool get_external_commands();
@@ -99,6 +104,16 @@ namespace sentinel
 
     unsigned display_level = 0;
     bool failed = false;
+
+    // Optional user-supplied callback providing extra, application-specific
+    // metadata about a variable (e.g. SMT-level details). Displayed by the
+    // GUI's variable-detail popup; only meaningful in real time (see
+    // is_real_time()) since the callback reflects the live host state, not
+    // the replayed SentinelState.
+    std::function<std::string(Tvar)> _variable_detail_callback;
+
+    // Same idea as _variable_detail_callback, but for clauses.
+    std::function<std::string(Tclause)> _clause_detail_callback;
 
     /**
      * @brief Continue the replay of the notifications until the next breakpoint, or the notification level is lower than the display level, or the end of the notifications is reached.

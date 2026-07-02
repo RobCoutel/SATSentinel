@@ -97,7 +97,11 @@ debug: REL_FLAGS = $(DBG_FLAGS)
 debug: $(BUILD_DIR)/$(TARGET_LIB)
 debug: $(BUILD_DIR)/$(EXEC)
 
-.PHONY: install
+.PHONY: install install-gui install-test
+install-gui:
+	sudo apt-get install -y libglfw3-dev libgl1-mesa-dev
+	git submodule update --init third_party/imgui
+
 install-test:
 	sudo apt-get install catch2
 

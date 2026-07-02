@@ -66,10 +66,10 @@ TEST_CASE("literal test", "[sentinel-types]")
   REQUIRE(~l3 == l4);
   REQUIRE(~l4 == l3);
 
-  REQUIRE(l1.to_string() == "~1");
-  REQUIRE(l2.to_string() == "1");
-  REQUIRE(l3.to_string() == "~2");
-  REQUIRE(l4.to_string() == "2");
+  REQUIRE(l1.to_string() == "~v1");
+  REQUIRE(l2.to_string() == "v1");
+  REQUIRE(l3.to_string() == "~v2");
+  REQUIRE(l4.to_string() == "v2");
 }
 
 TEST_CASE("literal satisfied, falsified, and undefined tests", "[sentinel-types]")
@@ -82,9 +82,9 @@ TEST_CASE("literal satisfied, falsified, and undefined tests", "[sentinel-types]
   Tlit l3{v2, 0}; // ~v2
   Tlit l4{v2, 1}; // v2
 
-  Tval val_true{VAR_TRUE};
-  Tval val_false{VAR_FALSE};
-  Tval val_undef{VAR_UNDEF};
+  Tval val_true{VAL_TRUE};
+  Tval val_false{VAL_FALSE};
+  Tval val_undef{VAL_UNDEF};
 
   REQUIRE(l1.satisfied(val_false));
   REQUIRE(!l1.satisfied(val_true));
