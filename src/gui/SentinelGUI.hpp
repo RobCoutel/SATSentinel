@@ -129,6 +129,7 @@ namespace sentinel
     void update_context(GuiDispatch dispatch, const std::string& status_header, const std::string& mode_label);
 
     void render_trail_panel();
+    void render_implication_graph_panel();
     void render_variables_panel();
     void render_clauses_panel();
     void render_command_panel();
@@ -157,7 +158,9 @@ namespace sentinel
     std::string _status_header;
     std::string _mode_label;
 
-    // trail panel
+    // trail panel / implication graph toggle
+    enum class TrailView { TRAIL, IMPLICATION_GRAPH };
+    TrailView _trail_view = TrailView::TRAIL;
     int _trail_offset = 0;
 
     // variables panel

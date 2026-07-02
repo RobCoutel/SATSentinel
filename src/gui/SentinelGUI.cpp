@@ -75,6 +75,36 @@ namespace
     }
   }
 
+  // ImVec2 has no operator+ unless IMGUI_DEFINE_MATH_OPERATORS is defined.
+  ImVec2 vadd(const ImVec2& a, const ImVec2& b) { return ImVec2(a.x + b.x, a.y + b.y); }
+
+  // Liang-Barsky segment/AABB clip test, reused as a segment-intersects-rect check:
+  // true iff the portion of the infinite line through p0,p1 that lies inside the
+  // rect overlaps the [0,1] segment parameter range.
+  bool seg_intersects_rect(ImVec2 p0, ImVec2 p1, ImVec2 rmin, ImVec2 rmax)
+  {
+    float dx = p1.x - p0.x, dy = p1.y - p0.y;
+    float tmin = 0.0f, tmax = 1.0f;
+    float pcoef[4] = { -dx, dx, -dy, dy };
+    float qcoef[4] = { p0.x - rmin.x, rmax.x - p0.x, p0.y - rmin.y, rmax.y - p0.y };
+    for (int i = 0; i < 4; i++) {
+      if (pcoef[i] == 0.0f) {
+        if (qcoef[i] < 0.0f)
+          return false;
+      } else {
+        float r = qcoef[i] / pcoef[i];
+        if (pcoef[i] < 0.0f) {
+          if (r > tmax) return false;
+          if (r > tmin) tmin = r;
+        } else {
+          if (r < tmin) return false;
+          if (r < tmax) tmax = r;
+        }
+      }
+    }
+    return true;
+  }
+
   bool contains_ci(const std::string& haystack, const std::string& needle)
   {
     if (needle.empty())
@@ -215,7 +245,16 @@ void SentinelGUI::pump_until_command(GuiDispatch dispatch, const std::string& st
     ImGui::SetNextWindowPos(ImVec2(0, 0));
     ImGui::SetNextWindowSize(ImVec2(left_w, trail_h));
     ImGui::Begin("Trail", nullptr, panel_flags);
-    render_trail_panel();
+    if (ImGui::RadioButton("Trail", _trail_view == TrailView::TRAIL))
+      _trail_view = TrailView::TRAIL;
+    ImGui::SameLine();
+    if (ImGui::RadioButton("Implication Graph", _trail_view == TrailView::IMPLICATION_GRAPH))
+      _trail_view = TrailView::IMPLICATION_GRAPH;
+    ImGui::Separator();
+    if (_trail_view == TrailView::TRAIL)
+      render_trail_panel();
+    else
+      render_implication_graph_panel();
     ImGui::End();
 
     ImGui::SetNextWindowPos(ImVec2(0, trail_h));
@@ -352,6 +391,171 @@ void SentinelGUI::render_trail_panel()
     }
 
     ImGui::EndTable();
+  }
+}
+
+void SentinelGUI::render_implication_graph_panel()
+{
+  size_t trail_size = _state->trail_size();
+  int top_level = (int)_state->level().value;
+
+  const float node_size = 56.0f;
+  const float x_spacing = 100.0f; // horizontal: order of assignment within a level
+  const float y_spacing = 90.0f;  // vertical: decision level
+  const float margin = 16.0f;
+
+  // X = order of assignment within the literal's decision level (decisions are
+  // always first, so they land in the leftmost column); Y = decision level,
+  // inverted so level 0 is at the bottom and higher levels stack upward, matching
+  // the level-counter rows in the trail panel above.
+  std::vector<int> level_seq((size_t)top_level + 1, 0);
+  std::vector<ImVec2> node_pos(_state->variables_size(), ImVec2(-1.0f, -1.0f));
+  for (size_t i = 0; i < trail_size; i++) {
+    Tvar var = _state->trail_literal(i).var();
+    int lvl = (int)_state->level(var).value;
+    int seq = level_seq[(size_t)lvl]++;
+    node_pos[var.value] = ImVec2(margin + seq * x_spacing, margin + (top_level - lvl) * y_spacing);
+  }
+
+  int max_seq = 1;
+  for (int s : level_seq)
+    max_seq = std::max(max_seq, s);
+  ImVec2 canvas_size(margin * 2.0f + max_seq * x_spacing, margin * 2.0f + (top_level + 1) * y_spacing);
+
+  ImGui::Text("Nodes: %zu, decision level: %d", trail_size, top_level);
+
+  ImGui::BeginChild("graph_canvas", ImVec2(0, 0), true, ImGuiWindowFlags_HorizontalScrollbar);
+  ImVec2 origin = ImGui::GetCursorScreenPos();
+  ImDrawList* draw_list = ImGui::GetWindowDrawList();
+  ImGui::Dummy(canvas_size); // grows the child's scroll region to fit the whole graph
+
+  // Edges first, so node shapes are drawn on top of the lines feeding into them.
+  for (size_t i = 0; i < trail_size; i++) {
+    Tlit lit = _state->trail_literal(i);
+    Tvar var = lit.var();
+    if (_state->decision(var) || _state->lazy(var))
+      continue;
+    Tclause reason = _state->reason(var);
+    if (reason == CLAUSE_UNDEF)
+      continue;
+
+    const std::vector<Tlit>& lits = _state->literals(reason);
+    unsigned n_deleted = _state->_clauses[reason].n_deleted_literals;
+    unsigned n_active = (unsigned)lits.size() - n_deleted;
+    ImVec2 to = vadd(vadd(origin, node_pos[var.value]), ImVec2(node_size / 2.0f, node_size / 2.0f));
+
+    for (unsigned k = 0; k < n_active; k++) {
+      Tvar other = lits[k].var();
+      if (other == var || node_pos[other.value].x < 0.0f)
+        continue;
+      ImVec2 from = vadd(vadd(origin, node_pos[other.value]), ImVec2(node_size / 2.0f, node_size / 2.0f));
+      ImU32 col = ImGui::GetColorU32(ImVec4(0.55f, 0.55f, 0.6f, 0.8f));
+
+      ImVec2 dir(to.x - from.x, to.y - from.y);
+      float len = std::sqrt(dir.x * dir.x + dir.y * dir.y);
+      ImVec2 ndir = len > 1e-3f ? ImVec2(dir.x / len, dir.y / len) : ImVec2(1.0f, 0.0f);
+      ImVec2 perp(-ndir.y, ndir.x);
+
+      // Curve the edge around any node (other than the two endpoints) whose box
+      // the straight line would otherwise cut through.
+      bool blocked = false;
+      float side = 1.0f;
+      for (size_t w = 0; w < node_pos.size(); w++) {
+        if (node_pos[w].x < 0.0f || w == var.value || w == other.value)
+          continue;
+        ImVec2 rmin = vadd(origin, node_pos[w]);
+        ImVec2 rmax = vadd(rmin, ImVec2(node_size, node_size));
+        // Shrink the box slightly so a line merely grazing a corner doesn't count.
+        ImVec2 rmin_in(rmin.x + 3.0f, rmin.y + 3.0f), rmax_in(rmax.x - 3.0f, rmax.y - 3.0f);
+        if (!seg_intersects_rect(from, to, rmin_in, rmax_in))
+          continue;
+        ImVec2 center(0.5f * (rmin.x + rmax.x), 0.5f * (rmin.y + rmax.y));
+        float cross = perp.x * (center.x - from.x) + perp.y * (center.y - from.y);
+        side = (cross >= 0.0f) ? -1.0f : 1.0f; // curve away from the blocking node
+        blocked = true;
+        break;
+      }
+
+      ImVec2 tip_dir = ndir;
+      if (blocked) {
+        float offset = node_size * 0.9f + 14.0f;
+        ImVec2 mid(0.5f * (from.x + to.x), 0.5f * (from.y + to.y));
+        ImVec2 control(mid.x + perp.x * offset * side, mid.y + perp.y * offset * side);
+        draw_list->AddBezierQuadratic(from, control, to, col, 1.5f);
+
+        ImVec2 tdir(to.x - control.x, to.y - control.y);
+        float tlen = std::sqrt(tdir.x * tdir.x + tdir.y * tdir.y);
+        if (tlen > 1e-3f)
+          tip_dir = ImVec2(tdir.x / tlen, tdir.y / tlen);
+      } else {
+        draw_list->AddLine(from, to, col, 1.5f);
+      }
+
+      ImVec2 tip(to.x - tip_dir.x * (node_size / 2.0f), to.y - tip_dir.y * (node_size / 2.0f));
+      ImVec2 tip_perp(-tip_dir.y, tip_dir.x);
+      ImVec2 pA(tip.x - tip_dir.x * 8.0f + tip_perp.x * 4.0f, tip.y - tip_dir.y * 8.0f + tip_perp.y * 4.0f);
+      ImVec2 pB(tip.x - tip_dir.x * 8.0f - tip_perp.x * 4.0f, tip.y - tip_dir.y * 8.0f - tip_perp.y * 4.0f);
+      draw_list->AddTriangleFilled(tip, pA, pB, col);
+    }
+  }
+
+  bool open_var_detail = false;
+  Tvar clicked_var(0);
+
+  for (size_t i = 0; i < trail_size; i++) {
+    Tlit lit = _state->trail_literal(i);
+    Tvar var = lit.var();
+    ImVec2 p0 = vadd(origin, node_pos[var.value]);
+    ImVec2 p1(p0.x + node_size, p0.y + node_size);
+    ImVec2 center(0.5f * (p0.x + p1.x), 0.5f * (p0.y + p1.y));
+    bool is_decision = _state->decision(var);
+
+    ImVec4 outline = color_for_lit(_state, lit);
+    ImU32 outline_col = ImGui::GetColorU32(outline);
+    bool marked = _markers->is_marked(var);
+    ImU32 fill = ImGui::GetColorU32(marked ? ImVec4(0.35f, 0.35f, 0.10f, 1.0f) : ImVec4(0.16f, 0.16f, 0.18f, 1.0f));
+
+    if (is_decision) {
+      draw_list->AddRectFilled(p0, p1, fill);
+      draw_list->AddRect(p0, p1, outline_col, 0.0f, 0, 1.5f);
+    } else {
+      float radius = node_size / 2.0f - 1.0f;
+      draw_list->AddCircleFilled(center, radius, fill);
+      draw_list->AddCircle(center, radius, outline_col, 0, 1.5f);
+    }
+
+    std::string label = label_for_lit(_state, lit);
+    ImVec2 text_size = ImGui::CalcTextSize(label.c_str());
+    draw_list->AddText(ImVec2(center.x - text_size.x / 2.0f, center.y - text_size.y / 2.0f),
+      outline_col, label.c_str());
+
+    ImGui::SetCursorScreenPos(p0);
+    ImGui::PushID((int)var.value);
+    if (ImGui::InvisibleButton("node", ImVec2(node_size, node_size))) {
+      clicked_var = var;
+      open_var_detail = true;
+    }
+    if (ImGui::IsItemHovered())
+      ImGui::SetTooltip("%s   reason: %s", label.c_str(),
+        is_decision ? "decision" : (_state->lazy(var) ? "lazy" : _state->reason(var).to_string().c_str()));
+    ImGui::PopID();
+  }
+  ImGui::EndChild();
+
+  // Same reasoning as the variables/clauses panels: OpenPopup()/BeginPopupModal()
+  // must run from the ID-stack context outside the child window's per-node PushID.
+  if (open_var_detail) {
+    _selected_var = (int)clicked_var.value;
+    ImGui::OpenPopup("Variable Detail");
+  }
+
+  if (ImGui::BeginPopupModal("Variable Detail", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (_selected_var >= 0)
+      render_variable_detail(Tvar((unsigned)_selected_var));
+    ImGui::Separator();
+    if (ImGui::Button("Close"))
+      ImGui::CloseCurrentPopup();
+    ImGui::EndPopup();
   }
 }
 
