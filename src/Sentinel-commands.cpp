@@ -38,6 +38,21 @@ bool SATSentinel::is_real_time() const
 
 void SATSentinel::set_command_parser(Tparser* parser)
 {
+  // if the commands file is setup, we read the commands from that file first, and then we read from the user input
+  if (_options && !_options->commands_file.empty()) {
+    std::ifstream commands_file(_options->commands_file);
+    if (!commands_file.is_open()) {
+      std::cout << "Could not open commands file: " << _options->commands_file << std::endl;
+      return;
+    }
+    std::string line;
+    while (std::getline(commands_file, line)) {
+      commands.push_back(line);
+    }
+    // reverse the commands so that we can pop them from the back
+    std::reverse(commands.begin(), commands.end());
+  }
+
   external_parser = parser;
 }
 
@@ -47,6 +62,15 @@ bool SATSentinel::get_external_commands()
   if (!external_parser) {
     std::cout << "No external command parser set. Please set one using set_command_parser() before calling get_external_commands()." << std::endl;
     return false;
+  }
+  if (commands.size() > 0) {
+    input = commands.back();
+    commands.pop_back();
+    bool success = external_parser->operator()(input);
+    if (!success) {
+      std::cout << "Command failed to execute. Type \"help\" for a list of commands." << std::endl;
+    }
+    return success;
   }
 #ifdef SENTINEL_GUI_ENABLED
   if (gui_view) {
@@ -96,6 +120,12 @@ void sentinel::SATSentinel::register_commands() {
     "next",
     "Go to the next notification",
     [this](const std::string& args) {
+      // If we are behind the notification stack (the user navigated into
+      // history with "back"), "next" must replay one recorded step forward
+      // instead of releasing control back to the solver: the sentinel stays
+      // locked until it is back on top of the stack (is_real_time()).
+      if (!is_real_time())
+        next();
       return true;
     }));
   navigation_commands.add_alias("next", "");

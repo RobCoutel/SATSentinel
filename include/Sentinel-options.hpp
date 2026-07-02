@@ -135,5 +135,10 @@ namespace sentinel
      * @note Invariant Cost: O(|F|) where |F| is the number of clauses.
      */
     bool check_strong_watched_literals = false;
+
+    /**
+     * @brief In interractive mode, the sentinel will read the commands in the given file. When a checkpoint is reached, the sentinel will first take the commands from that file before asking the user for input.
+     */
+    std::string commands_file = "";
   };
 }

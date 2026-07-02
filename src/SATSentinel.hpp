@@ -88,6 +88,8 @@ namespace sentinel
 
     SentinelState* state;
 
+    std::vector<std::string> commands;
+
     // Only ever non-null when SATSentinel was built with `make GUI=1` and
     // SentinelOptions::gui is true. Declared unconditionally (rather than
     // behind an #ifdef) so that sizeof(SATSentinel) and member offsets never

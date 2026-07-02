@@ -138,6 +138,13 @@ namespace sentinel
     void render_variable_detail(Tvar var);
     void render_clause_detail(Tclause cl);
 
+    // Draws a draggable strip in the current (overlay) window that resizes an
+    // adjacent pair of panels by adjusting *value in place. Vertical splitters
+    // (is_vertical=true) drag along X between [x0,x1] at the given y-range;
+    // horizontal ones drag along Y between [y0,y1] at the given x-range.
+    void render_splitter(const char* id, bool is_vertical, float pos, float span_min, float span_max,
+                          float& value, float min_value, float max_value);
+
     void submit(const std::string& input);
 
     static int command_text_edit_callback(ImGuiInputTextCallbackData* data);
@@ -157,6 +164,24 @@ namespace sentinel
     bool _context_refreshed = false;   // set by update_context() during the current submit()
     std::string _status_header;
     std::string _mode_label;
+
+    // Adjustable panel layout: pixel position of each resizable edge, dragged
+    // via render_splitter(). Each value is measured the same way render_splitter()
+    // reports drag position - from the origin (0,0) of the overlay window, growing
+    // right/down - so a positive mouse delta always adds directly to the value.
+    // Negative means "not yet initialized for this window size" - the pump loop
+    // seeds them from the classic fixed-fraction layout on first use, then
+    // leaves them under user control.
+    float _left_w = -1.0f;   // x boundary between the left column and the right column
+    float _trail_h = -1.0f;
+    float _var_w = -1.0f;
+    float _command_h = -1.0f;
+
+    // Ctrl+scroll UI zoom. Applied by rescaling a saved copy of the base style
+    // every frame (ImGuiStyle::ScaleAllSizes is cumulative, so it can't be
+    // called directly on the live style each frame) and by setting FontGlobalScale.
+    float _ui_scale = 1.0f;
+    ImGuiStyle _base_style{};
 
     // trail panel / implication graph toggle
     enum class TrailView { TRAIL, IMPLICATION_GRAPH };

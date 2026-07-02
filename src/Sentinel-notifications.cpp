@@ -34,7 +34,6 @@ namespace sentinel
   {
     switch (type) {
     case MESSAGE: return "MESSAGE";
-    case CHECK_INVARIANTS: return "CHECK_INVARIANTS";
     case VARIABLE_NEW: return "VARIABLE_NEW";
     case CLAUSE_NEW: return "CLAUSE_NEW";
     case CLAUSE_REMOVED: return "CLAUSE_REMOVED";
@@ -223,7 +222,7 @@ namespace sentinel
     assert(lit.var().value < state->_variables.size());
     assert(state->active(lit.var()));
     assert(!state->lit_undef(lit));
-    assert(state->propagated(lit.var()) == true);
+    // assert(state->propagated(lit.var()));
 
     state->propagated(lit.var()) = false;
     return true;

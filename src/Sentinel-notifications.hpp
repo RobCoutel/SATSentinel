@@ -43,7 +43,6 @@ namespace sentinel::notif
   enum ENotifType
   {
     MESSAGE,
-    CHECK_INVARIANTS,
 
     VARIABLE_NEW,
 

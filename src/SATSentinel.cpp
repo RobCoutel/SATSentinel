@@ -120,21 +120,26 @@ bool SATSentinel::back()
     return true;
   }
   bool success = true;
-  bool display_state = false;
   while (current_notification_index > 0) {
     notif::notification* notif = notifications[--current_notification_index];
-    bool success = notif->rollback(state);
-    if (success && notif->get_event_level(markers) > display_level) {
+    bool step_success = notif->rollback(state);
+    success = success && step_success;
+    if (step_success && notif->get_event_level(markers) > display_level) {
       continue;
     }
-    if (!success) {
+    if (!step_success) {
       failed = true;
       std::cerr << "Notification rollback failed: " << notif->get_message() << std::endl;
     }
-    display_state = true;
     break;
   }
-  if (display_state && !_options->check_only) {
+  // The loop above always leaves current_notification_index strictly below
+  // notifications.size() (real time), whether it stopped on a displayable
+  // notification or ran all the way down to the start of history. Either way
+  // we must re-enter the prompt loop rather than returning: letting this
+  // "stop" propagate to the caller would release control back to the solver
+  // while the sentinel is not on top of the notification stack.
+  if (!_options->check_only) {
     get_navigation_commands();
   }
   return success;

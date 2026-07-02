@@ -154,6 +154,7 @@ SentinelGUI::SentinelGUI(const SentinelState* state, const SentinelMarker* marke
   io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
   io.IniFilename = nullptr; // panels are fixed-position/size; nothing to persist
   ImGui::StyleColorsDark();
+  _base_style = ImGui::GetStyle(); // unscaled reference for ctrl+scroll zoom
 
   ImGui_ImplGlfw_InitForOpenGL(_window, true);
   ImGui_ImplOpenGL3_Init("#version 130");
@@ -167,6 +168,38 @@ SentinelGUI::~SentinelGUI()
     ImGui::DestroyContext();
     glfwDestroyWindow(_window);
     glfwTerminate();
+  }
+}
+
+void SentinelGUI::render_splitter(const char* id, bool is_vertical, float pos, float span_min, float span_max,
+                                   float& value, float min_value, float max_value)
+{
+  const float thickness = 6.0f;
+  ImVec2 origin = ImGui::GetWindowPos(); // the overlay window is anchored at (0, 0), but stay robust to that
+
+  ImVec2 cursor = is_vertical
+      ? ImVec2(origin.x + pos - thickness * 0.5f, origin.y + span_min)
+      : ImVec2(origin.x + span_min, origin.y + pos - thickness * 0.5f);
+  ImVec2 size = is_vertical
+      ? ImVec2(thickness, span_max - span_min)
+      : ImVec2(span_max - span_min, thickness);
+
+  ImGui::SetCursorScreenPos(cursor);
+  ImGui::InvisibleButton(id, size);
+
+  bool hovered = ImGui::IsItemHovered();
+  bool active = ImGui::IsItemActive();
+  if (hovered || active)
+    ImGui::SetMouseCursor(is_vertical ? ImGuiMouseCursor_ResizeEW : ImGuiMouseCursor_ResizeNS);
+
+  if (active) {
+    ImGuiIO& io = ImGui::GetIO();
+    value = std::clamp(value + (is_vertical ? io.MouseDelta.x : io.MouseDelta.y), min_value, max_value);
+  }
+
+  if (hovered || active) {
+    ImU32 col = ImGui::GetColorU32(active ? ImGuiCol_SeparatorActive : ImGuiCol_SeparatorHovered);
+    ImGui::GetWindowDrawList()->AddRectFilled(ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), col);
   }
 }
 
@@ -232,13 +265,66 @@ void SentinelGUI::pump_until_command(GuiDispatch dispatch, const std::string& st
     ImGuiIO& io = ImGui::GetIO();
     float W = std::max(io.DisplaySize.x, 200.0f);
     float H = std::max(io.DisplaySize.y, 200.0f);
-    float right_w = std::min(420.0f, W * 0.32f);
-    float left_w = W - right_w;
-    float trail_h = H * 0.32f;
-    float bottom_h = H - trail_h;
-    float var_w = left_w * 0.3f;
-    float clause_w = left_w - var_w;
-    float command_h = H * 0.65f;
+
+    // Ctrl+Plus/Minus zoom the whole UI in/out (Ctrl+0 resets). Not bound to
+    // ctrl+scroll: many desktop environments intercept that combination
+    // globally for their own screen magnifier before it ever reaches the app.
+    // Rescale from the saved base style each frame rather than the live style,
+    // since ScaleAllSizes() compounds if applied repeatedly to itself.
+    if (io.KeyCtrl) {
+      if (ImGui::IsKeyPressed(ImGuiKey_Equal) || ImGui::IsKeyPressed(ImGuiKey_KeypadAdd))
+        _ui_scale = std::clamp(_ui_scale + 0.1f, 0.5f, 2.5f);
+      if (ImGui::IsKeyPressed(ImGuiKey_Minus) || ImGui::IsKeyPressed(ImGuiKey_KeypadSubtract))
+        _ui_scale = std::clamp(_ui_scale - 0.1f, 0.5f, 2.5f);
+      if (ImGui::IsKeyPressed(ImGuiKey_0) || ImGui::IsKeyPressed(ImGuiKey_Keypad0))
+        _ui_scale = 1.0f;
+    }
+    ImGui::GetStyle() = _base_style;
+    ImGui::GetStyle().ScaleAllSizes(_ui_scale);
+    io.FontGlobalScale = _ui_scale;
+
+    const float splitter = 6.0f;
+    const float min_panel = 80.0f;
+
+    // Zoom widget footprint, computed up front so a strip at the bottom of the
+    // right column can be reserved for it below. It must never overlap a real
+    // panel: ImGui promotes whichever window was last interacted with (e.g.
+    // Options, when the user edits the display level) to the front of the
+    // per-frame draw order, so an overlapping floating widget gets drawn over
+    // as soon as its neighbor panel is touched.
+    const float zoom_pad = 6.0f * _ui_scale;
+    const float zoom_button_w = ImGui::GetFontSize() * 1.6f + zoom_pad;
+    const float zoom_widget_w = zoom_button_w * 2.0f + ImGui::CalcTextSize("100%").x + zoom_pad * 4.0f;
+    const float zoom_widget_h = ImGui::GetFontSize() + zoom_pad * 2.0f;
+    const float zoom_margin = 10.0f;
+    const float zoom_strip_h = zoom_widget_h + zoom_margin * 2.0f;
+
+    // Panel sizes are user-adjustable (see render_splitter() calls below) and
+    // persist in pixels across frames; seed them from the classic fixed-fraction
+    // layout the first time a window size is known, then just keep them in bounds.
+    if (_left_w < 0.0f)
+      _left_w = W - splitter - std::min(420.0f, W * 0.32f);
+    _left_w = std::clamp(_left_w, min_panel, W - min_panel - splitter);
+    float left_w = _left_w;
+    float right_w = W - splitter - left_w;
+
+    if (_trail_h < 0.0f)
+      _trail_h = H * 0.32f;
+    _trail_h = std::clamp(_trail_h, min_panel, H - min_panel - splitter);
+    float trail_h = _trail_h;
+    float bottom_h = H - splitter - trail_h;
+
+    if (_var_w < 0.0f)
+      _var_w = left_w * 0.3f;
+    _var_w = std::clamp(_var_w, min_panel, left_w - min_panel - splitter);
+    float var_w = _var_w;
+    float clause_w = left_w - splitter - var_w;
+
+    if (_command_h < 0.0f)
+      _command_h = H * 0.65f;
+    _command_h = std::clamp(_command_h, min_panel, H - min_panel - splitter - zoom_strip_h);
+    float command_h = _command_h;
+    float options_h = H - command_h - splitter - zoom_strip_h;
 
     const ImGuiWindowFlags panel_flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse;
 
@@ -257,29 +343,76 @@ void SentinelGUI::pump_until_command(GuiDispatch dispatch, const std::string& st
       render_implication_graph_panel();
     ImGui::End();
 
-    ImGui::SetNextWindowPos(ImVec2(0, trail_h));
+    ImGui::SetNextWindowPos(ImVec2(0, trail_h + splitter));
     ImGui::SetNextWindowSize(ImVec2(var_w, bottom_h));
     ImGui::Begin("Variables", nullptr, panel_flags);
     render_variables_panel();
     ImGui::End();
 
-    ImGui::SetNextWindowPos(ImVec2(var_w, trail_h));
+    ImGui::SetNextWindowPos(ImVec2(var_w + splitter, trail_h + splitter));
     ImGui::SetNextWindowSize(ImVec2(clause_w, bottom_h));
     ImGui::Begin("Clauses", nullptr, panel_flags);
     render_clauses_panel();
     ImGui::End();
 
-    ImGui::SetNextWindowPos(ImVec2(left_w, 0));
+    ImGui::SetNextWindowPos(ImVec2(left_w + splitter, 0));
     ImGui::SetNextWindowSize(ImVec2(right_w, command_h));
     ImGui::Begin("Commands", nullptr, panel_flags);
     render_command_panel();
     ImGui::End();
 
-    ImGui::SetNextWindowPos(ImVec2(left_w, command_h));
-    ImGui::SetNextWindowSize(ImVec2(right_w, H - command_h));
+    ImGui::SetNextWindowPos(ImVec2(left_w + splitter, command_h + splitter));
+    ImGui::SetNextWindowSize(ImVec2(right_w, options_h));
     ImGui::Begin("Options", nullptr, panel_flags);
     render_options_panel();
     ImGui::End();
+
+    // Draggable splitters live in the gaps between panels, on an invisible
+    // full-screen overlay window (ImGui needs a window context for InvisibleButton).
+    // Because panels no longer touch, the splitters never overlap panel content,
+    // so no special z-ordering vs. the panel windows above is needed.
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
+    ImGui::SetNextWindowPos(ImVec2(0, 0));
+    ImGui::SetNextWindowSize(ImVec2(W, H));
+    ImGui::Begin("##splitters", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize
+        | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse
+        | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing
+        | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoNav
+        | ImGuiWindowFlags_NoDecoration);
+
+    // pos + splitter/2: value/pos mark where the gap starts (the edge of the
+    // panel before it), but the hit-box/highlight should be centered in the
+    // gap itself so it lines up with what the user actually sees.
+    render_splitter("##vsplit_main", true, left_w + splitter * 0.5f, 0.0f, H, _left_w, min_panel, W - min_panel - splitter);
+    render_splitter("##hsplit_trail", false, trail_h + splitter * 0.5f, 0.0f, left_w, _trail_h, min_panel, H - min_panel - splitter);
+    render_splitter("##vsplit_varclause", true, var_w + splitter * 0.5f, trail_h + splitter, H, _var_w, min_panel, left_w - min_panel - splitter);
+    render_splitter("##hsplit_command", false, command_h + splitter * 0.5f, left_w + splitter, W, _command_h, min_panel, H - min_panel - splitter - zoom_strip_h);
+
+    ImGui::End();
+    ImGui::PopStyleColor();
+
+    // Zoom widget, in the strip reserved for it below the Options panel (see
+    // zoom_strip_h above) so it never geometrically overlaps a real panel and
+    // therefore never needs to fight ImGui's focus-driven window ordering.
+    {
+      ImGui::SetNextWindowPos(ImVec2(W - zoom_widget_w - zoom_margin, H - zoom_widget_h - zoom_margin));
+      ImGui::SetNextWindowSize(ImVec2(zoom_widget_w, zoom_widget_h));
+      ImGui::SetNextWindowBgAlpha(0.85f);
+      ImGui::Begin("##zoom_widget", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize
+          | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse
+          | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing
+          | ImGuiWindowFlags_NoNav);
+
+      if (ImGui::Button("-", ImVec2(zoom_button_w, 0.0f)))
+        _ui_scale = std::clamp(_ui_scale - 0.1f, 0.5f, 2.5f);
+      ImGui::SameLine();
+      ImGui::TextUnformatted((std::to_string((int)std::lround(_ui_scale * 100.0f)) + "%").c_str());
+      ImGui::SameLine();
+      if (ImGui::Button("+", ImVec2(zoom_button_w, 0.0f)))
+        _ui_scale = std::clamp(_ui_scale + 0.1f, 0.5f, 2.5f);
+
+      ImGui::End();
+    }
 
     ImGui::Render();
     int display_w, display_h;
@@ -399,10 +532,13 @@ void SentinelGUI::render_implication_graph_panel()
   size_t trail_size = _state->trail_size();
   int top_level = (int)_state->level().value;
 
-  const float node_size = 56.0f;
-  const float x_spacing = 100.0f; // horizontal: order of assignment within a level
-  const float y_spacing = 90.0f;  // vertical: decision level
-  const float margin = 16.0f;
+  // Scaled by the ctrl+/- UI zoom (see the zoom widget in pump_until_command()):
+  // FontGlobalScale/style scaling only affects widgets and text, not this panel's
+  // manually drawn node/edge geometry, so it needs its own scale factor.
+  const float node_size = 56.0f * _ui_scale;
+  const float x_spacing = 100.0f * _ui_scale; // horizontal: order of assignment within a level
+  const float y_spacing = 90.0f * _ui_scale;  // vertical: decision level
+  const float margin = 16.0f * _ui_scale;
 
   // X = order of assignment within the literal's decision level (decisions are
   // always first, so they land in the leftmost column); Y = decision level,
@@ -466,7 +602,8 @@ void SentinelGUI::render_implication_graph_panel()
         ImVec2 rmin = vadd(origin, node_pos[w]);
         ImVec2 rmax = vadd(rmin, ImVec2(node_size, node_size));
         // Shrink the box slightly so a line merely grazing a corner doesn't count.
-        ImVec2 rmin_in(rmin.x + 3.0f, rmin.y + 3.0f), rmax_in(rmax.x - 3.0f, rmax.y - 3.0f);
+        float shrink = 3.0f * _ui_scale;
+        ImVec2 rmin_in(rmin.x + shrink, rmin.y + shrink), rmax_in(rmax.x - shrink, rmax.y - shrink);
         if (!seg_intersects_rect(from, to, rmin_in, rmax_in))
           continue;
         ImVec2 center(0.5f * (rmin.x + rmax.x), 0.5f * (rmin.y + rmax.y));
@@ -476,25 +613,27 @@ void SentinelGUI::render_implication_graph_panel()
         break;
       }
 
+      float line_thickness = 1.5f * _ui_scale;
       ImVec2 tip_dir = ndir;
       if (blocked) {
-        float offset = node_size * 0.9f + 14.0f;
+        float offset = node_size * 0.9f + 14.0f * _ui_scale;
         ImVec2 mid(0.5f * (from.x + to.x), 0.5f * (from.y + to.y));
         ImVec2 control(mid.x + perp.x * offset * side, mid.y + perp.y * offset * side);
-        draw_list->AddBezierQuadratic(from, control, to, col, 1.5f);
+        draw_list->AddBezierQuadratic(from, control, to, col, line_thickness);
 
         ImVec2 tdir(to.x - control.x, to.y - control.y);
         float tlen = std::sqrt(tdir.x * tdir.x + tdir.y * tdir.y);
         if (tlen > 1e-3f)
           tip_dir = ImVec2(tdir.x / tlen, tdir.y / tlen);
       } else {
-        draw_list->AddLine(from, to, col, 1.5f);
+        draw_list->AddLine(from, to, col, line_thickness);
       }
 
       ImVec2 tip(to.x - tip_dir.x * (node_size / 2.0f), to.y - tip_dir.y * (node_size / 2.0f));
       ImVec2 tip_perp(-tip_dir.y, tip_dir.x);
-      ImVec2 pA(tip.x - tip_dir.x * 8.0f + tip_perp.x * 4.0f, tip.y - tip_dir.y * 8.0f + tip_perp.y * 4.0f);
-      ImVec2 pB(tip.x - tip_dir.x * 8.0f - tip_perp.x * 4.0f, tip.y - tip_dir.y * 8.0f - tip_perp.y * 4.0f);
+      float arrow_len = 8.0f * _ui_scale, arrow_wid = 4.0f * _ui_scale;
+      ImVec2 pA(tip.x - tip_dir.x * arrow_len + tip_perp.x * arrow_wid, tip.y - tip_dir.y * arrow_len + tip_perp.y * arrow_wid);
+      ImVec2 pB(tip.x - tip_dir.x * arrow_len - tip_perp.x * arrow_wid, tip.y - tip_dir.y * arrow_len - tip_perp.y * arrow_wid);
       draw_list->AddTriangleFilled(tip, pA, pB, col);
     }
   }
@@ -517,11 +656,11 @@ void SentinelGUI::render_implication_graph_panel()
 
     if (is_decision) {
       draw_list->AddRectFilled(p0, p1, fill);
-      draw_list->AddRect(p0, p1, outline_col, 0.0f, 0, 1.5f);
+      draw_list->AddRect(p0, p1, outline_col, 0.0f, 0, 1.5f * _ui_scale);
     } else {
-      float radius = node_size / 2.0f - 1.0f;
+      float radius = node_size / 2.0f - _ui_scale;
       draw_list->AddCircleFilled(center, radius, fill);
-      draw_list->AddCircle(center, radius, outline_col, 0, 1.5f);
+      draw_list->AddCircle(center, radius, outline_col, 0, 1.5f * _ui_scale);
     }
 
     std::string label = label_for_lit(_state, lit);
@@ -951,18 +1090,13 @@ void SentinelGUI::render_options_panel()
   ImGui::Checkbox("crash_on_error", &_options->crash_on_error);
 
   ImGui::Separator();
-  ImGui::TextUnformatted("Invariant checks (fixed at startup):");
-  ImGui::BeginDisabled();
-  bool b;
-  b = _options->check_no_conflicts;            ImGui::Checkbox("check_no_conflicts", &b);
-  b = _options->check_no_missed_implications;   ImGui::Checkbox("check_no_missed_implications", &b);
-  b = _options->check_implied_levels;           ImGui::Checkbox("check_implied_levels", &b);
-  b = _options->check_trail_monotonicity;       ImGui::Checkbox("check_trail_monotonicity", &b);
-  b = _options->check_topological_order;        ImGui::Checkbox("check_topological_order", &b);
-  b = _options->check_assignment_coherence;     ImGui::Checkbox("check_assignment_coherence", &b);
-  b = _options->check_weak_watched_literals;    ImGui::Checkbox("check_weak_watched_literals", &b);
-  b = _options->check_strong_watched_literals;  ImGui::Checkbox("check_strong_watched_literals", &b);
-  ImGui::EndDisabled();
+  ImGui::TextUnformatted("Invariant checks:");
+  for (const auto& invariant : _state->_invariants) {
+    ImGui::Text("%s", invariant->name.c_str());
+  }
+  for (const auto& invariant : _state->_watch_invariants) {
+    ImGui::Text("%s", invariant->name.c_str());
+  }
   if (ImGui::IsItemHovered())
     ImGui::SetTooltip("Invariant checks are baked into the solver state once at\nconstruction time; toggling them live is not supported yet.");
 }
