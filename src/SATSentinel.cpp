@@ -29,12 +29,12 @@
 namespace sentinel
 {
 
-SATSentinel::SATSentinel(SentinelOptions* options)
+SATSentinel::SATSentinel(Options* options)
 {
   if (options) {
     _options = options;
   } else {
-    _options = new SentinelOptions();
+    _options = new Options();
   }
   markers = new SentinelMarker();
   state = new SentinelState(options);

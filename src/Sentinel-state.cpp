@@ -20,13 +20,13 @@
 namespace sentinel
 {
 
-SentinelState::SentinelState(SentinelOptions* options)
+SentinelState::SentinelState(Options* options)
 {
   _level_counters.push_back(0);
   if (options) {
     _options = options;
   } else {
-    _options = new SentinelOptions();
+    _options = new Options();
   }
 
   register_invariants();

@@ -136,22 +136,11 @@ void configure_command_parser(SATSentinel* sentinel, CommandParser& parser)
 int main(int argc, char* argv[])
 {
   std::vector<std::string> args(argv + 1, argv + argc);
-  sentinel::SentinelOptions options;
-  for (size_t i = 0; i < args.size(); ++i) {
-    if (args[i] == "--interactive") {
-      options.interactive = true;
-    } else if (args[i] == "--check-only") {
-      options.check_only = true;
-    } else if (args[i] == "--crash-on-error") {
-      options.crash_on_error = true;
-    } else if (args[i] == "--gui") {
-      options.gui = true;
-    } else {
-      std::cout << "Unknown option: " << args[i] << std::endl;
-      return 1;
-    }
+  if (!args.empty() && (args[0] == "-h" || args[0] == "--help")) {
+    std::cout << sentinel::Options::get_help_text();
+    return 0;
   }
-
+  sentinel::Options options(args);
 
   SATSentinel* sentinel = sentinel::create_sentinel(options);
 

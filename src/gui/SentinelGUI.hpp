@@ -86,7 +86,7 @@ namespace sentinel
      * backward via "back"). The callback reflects live host-application state,
      * which is only meaningful in real time.
      */
-    SentinelGUI(const SentinelState* state, const SentinelMarker* markers, SentinelOptions* options, const unsigned* display_level,
+    SentinelGUI(const SentinelState* state, const SentinelMarker* markers, Options* options, const unsigned* display_level,
                 const std::function<std::string(Tvar)>* variable_detail_callback,
                 const std::function<std::string(Tclause)>* clause_detail_callback,
                 std::function<bool()> is_real_time);
@@ -151,7 +151,7 @@ namespace sentinel
 
     const SentinelState* _state;
     const SentinelMarker* _markers;
-    SentinelOptions* _options;
+    Options* _options;
     const unsigned* _display_level;
     const std::function<std::string(Tvar)>* _variable_detail_callback;
     const std::function<std::string(Tclause)>* _clause_detail_callback;

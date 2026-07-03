@@ -115,7 +115,7 @@ namespace
   }
 }
 
-SentinelGUI::SentinelGUI(const SentinelState* state, const SentinelMarker* markers, SentinelOptions* options, const unsigned* display_level,
+SentinelGUI::SentinelGUI(const SentinelState* state, const SentinelMarker* markers, Options* options, const unsigned* display_level,
                           const std::function<std::string(Tvar)>* variable_detail_callback,
                           const std::function<std::string(Tclause)>* clause_detail_callback,
                           std::function<bool()> is_real_time) :
@@ -1085,7 +1085,6 @@ void SentinelGUI::render_options_panel()
 
   ImGui::Separator();
   ImGui::TextUnformatted("Live debugger options:");
-  ImGui::Checkbox("interactive", &_options->interactive);
   ImGui::Checkbox("check_only", &_options->check_only);
   ImGui::Checkbox("crash_on_error", &_options->crash_on_error);
 

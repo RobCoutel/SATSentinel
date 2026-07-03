@@ -20,9 +20,9 @@
 
 namespace sentinel
 {
-  SATSentinel* create_sentinel(const SentinelOptions& options)
+  SATSentinel* create_sentinel(const Options& options)
   {
-    return new SATSentinel(new SentinelOptions(options));
+    return new SATSentinel(new Options(options));
   }
 
   void delete_sentinel(SATSentinel* sentinel)

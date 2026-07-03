@@ -53,7 +53,7 @@ CATCH_REGISTER_LISTENER(SuppressCerr)
 
 namespace {
 
-SATSentinel* make_sentinel(SentinelOptions* opts = new SentinelOptions{})
+SATSentinel* make_sentinel(Options* opts = new Options{})
 {
     opts->check_only = true;  // don't prompt for user input during tests
     return create_sentinel(*opts);
@@ -119,7 +119,7 @@ TEST_CASE("default sentinel is non-null with empty state", "[api]")
 
 TEST_CASE("watch invariant flags are forwarded to internal state", "[api]")
 {
-    SentinelOptions opts;
+    Options opts;
     opts.check_weak_watched_literals   = true;
     opts.check_strong_watched_literals = true;
 
@@ -131,7 +131,7 @@ TEST_CASE("watch invariant flags are forwarded to internal state", "[api]")
 
 TEST_CASE("all built-in invariant flags can be enabled simultaneously", "[api]")
 {
-    SentinelOptions opts;
+    Options opts;
     opts.check_no_conflicts            = true;
     opts.check_no_missed_implications  = true;
     opts.check_implied_levels          = true;
@@ -643,7 +643,7 @@ TEST_CASE("check_no_conflicts detects a unit clause falsified by the propagated 
 {
     // check_no_conflicts requires a literal to be BOTH false AND propagated.
     // Using a unit clause avoids the 2-watch requirement.
-    SentinelOptions opts;
+    Options opts;
     opts.check_no_conflicts = true;
     SATSentinel* s = make_sentinel(&opts);
     add_vars(s, {1});
@@ -662,7 +662,7 @@ TEST_CASE("check_no_conflicts detects a unit clause falsified by the propagated 
 
 TEST_CASE("check_trail_monotonicity detects a level decrease within the trail", "[api]")
 {
-    SentinelOptions opts;
+    Options opts;
     opts.check_trail_monotonicity = true;
     SATSentinel* s = make_sentinel(&opts);
     add_vars(s, {1, 2});

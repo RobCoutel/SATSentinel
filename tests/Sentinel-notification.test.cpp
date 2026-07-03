@@ -153,7 +153,7 @@ bool level_counters_consistent(const SentinelState* state)
 // SATSentinel-level helpers (mirrors Sentinel-API.test.cpp's conventions).
 // --------------------------------------------------------------------------
 
-SATSentinel* make_sentinel(SentinelOptions* opts = new SentinelOptions{})
+SATSentinel* make_sentinel(Options* opts = new Options{})
 {
     opts->check_only = true;
     return create_sentinel(*opts);

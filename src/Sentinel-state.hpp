@@ -28,7 +28,7 @@ namespace sentinel
 class SentinelState
 {
 public:
-  SentinelState(SentinelOptions* options = nullptr);
+  SentinelState(Options* options = nullptr);
   ~SentinelState();
 
   /** STATE ACCESSORS **/
@@ -193,7 +193,7 @@ public:
   clause_set _clauses;
   std::vector<Tlit> _trail;
 
-  const SentinelOptions* _options;
+  const Options* _options;
 
   // for each level, keeps track of the number of literals assigned at this level.
   std::vector<unsigned> _level_counters;

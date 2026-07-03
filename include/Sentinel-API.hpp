@@ -50,7 +50,7 @@ namespace sentinel
    * @param options Configuration options for the sentinel.
    * @return A newly allocated sentinel instance.
    */
-  SATSentinel* create_sentinel(const SentinelOptions& options);
+  SATSentinel* create_sentinel(const Options& options);
 
   /**
    * @brief Destroys a sentinel instance and releases all associated resources.

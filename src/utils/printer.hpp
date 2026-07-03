@@ -72,11 +72,20 @@ std::string pretty_float(double f, unsigned n = 2);
  */
 std::string pretty_time(std::chrono::microseconds time);
 
+/**
+ * @brief Justifies a string to a given width by adding fill characters to the right.
+ * @param str The string to justify.
+ * @param width The width to justify to.
+ * @param fill The character to fill with.
+ * @return The justified string.
+ */
+std::string justify_string(const std::string& str, unsigned width, char fill = ' ', const std::string& prefix = "");
+
 const std::string ERROR_HEAD = "\033[1;31mERROR: \033[0m";
 const std::string WARNING_HEAD = "\033[0;33mWARNING: \033[0m";
 const std::string INFO_HEAD = "\033[34mINFO: \033[0m";
 
 #define LOG_ERROR(msg)   do { std::cerr << ERROR_HEAD << msg << std::endl; } while(0)
-#define LOG_WARNING(msg) do { if(!napsat::env::get_suppress_warning()) std::cout << WARNING_HEAD << msg << std::endl; } while(0)
-#define LOG_INFO(msg)    do { if(!napsat::env::get_suppress_info()) std::cout << INFO_HEAD << msg << std::endl; } while(0)
+#define LOG_WARNING(msg) do { std::cout << WARNING_HEAD << msg << std::endl; } while(0)
+#define LOG_INFO(msg)    do { std::cout << INFO_HEAD << msg << std::endl; } while(0)
 }

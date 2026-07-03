@@ -54,7 +54,7 @@ namespace sentinel
   class SATSentinel
   {
   public:
-    SATSentinel(SentinelOptions* options = nullptr);
+    SATSentinel(Options* options = nullptr);
     ~SATSentinel();
 
     bool notify(notif::notification* notif);
@@ -78,7 +78,7 @@ namespace sentinel
     void add_watch_invariant(WatchInvariant* invariant);
 
   private:
-    SentinelOptions* _options;
+    Options* _options;
 
     std::vector<notif::notification*> notifications;
 

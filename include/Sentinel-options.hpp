@@ -8,22 +8,18 @@
  * @file include/Sentinel-options.hpp
  * @author Robin Coutelier
  *
- * @brief SentinelOptions configuration struct controlling interactive mode, display level, and
+ * @brief Options configuration struct controlling interactive mode, display level, and
  * which built-in invariant checks are enabled at runtime.
  */
 #pragma once
 
 #include <string>
+#include <vector>
 
 namespace sentinel
 {
-  struct SentinelOptions
+  struct Options
   {
-    /**
-     * @brief If true, when the user sends a checkpoint, the sentinel will interrupt the solver execution and pass the user command to the solver.
-     */
-    bool interactive = false;
-
     /**
      * @brief Default display level. Notifications with a level higher than or equal to this level will interrupt the solver, display the state, and prompt the user for a navigation command.
      */
@@ -140,5 +136,18 @@ namespace sentinel
      * @brief In interractive mode, the sentinel will read the commands in the given file. When a checkpoint is reached, the sentinel will first take the commands from that file before asking the user for input.
      */
     std::string commands_file = "";
+
+    Options() = default;
+
+    /**
+     * @brief Parses a list of CLI tokens (e.g. the tokens found inside the `-o { ... }` group on the
+     * NapSAT command line, or SATSentinel's own argv) into a Options.
+     */
+    explicit Options(std::vector<std::string>& tokens);
+
+    /**
+     * @brief Runtime-generated help text describing every sentinel/observer option.
+     */
+    static std::string get_help_text();
   };
 }
