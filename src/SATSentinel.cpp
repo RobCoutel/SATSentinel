@@ -87,7 +87,10 @@ bool SATSentinel::next()
   while (current_notification_index < notifications.size()) {
     notif::notification* notif = notifications[current_notification_index++];
     success = notif->apply(state);
-    if (success && notif->get_event_level(markers) > display_level) {
+    display_state |= !success;
+    display_state |= notif->get_event_level(markers) <= display_level;
+    display_state |= breakpoints.find(current_notification_index) != breakpoints.end();
+    if (!display_state) {
       continue;
     }
 

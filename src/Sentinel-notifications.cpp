@@ -393,7 +393,8 @@ namespace sentinel
     SOFT_ASSERT(cl.value < state->_clauses.size());
     SOFT_ASSERT(state->_clauses[cl.value].active);
     deleted_clause = state->_clauses[cl.value];
-    state->_clauses[cl.value].active = false;
+    state->_clauses[cl.value] = SentinelState::clause();
+
     return true;
   }
 

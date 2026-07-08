@@ -9,8 +9,6 @@ CC := g++
 # dependencies. `make all GUI=1` additionally compiles the vendored Dear
 # ImGui sources and the src/gui/ frontend, and links against the system
 # GLFW + OpenGL libraries (apt: libglfw3-dev libgl1-mesa-dev).
-# NOTE: switching GUI=0 <-> GUI=1 reuses stale .o files since the pattern
-# rule below doesn't depend on the flag value; run `make clean` when toggling.
 GUI ?= 0
 IMGUI_DIR ?= ./third_party/imgui
 
@@ -68,17 +66,36 @@ else
   REL_FLAGS := $(REL_FLAGS)
 endif
 
+# Fingerprint of the flags that affect compilation (GUI, optimization/debug
+# flags, defines, ...). Made a prerequisite of every .o below so that
+# toggling GUI=0/1 or BUILD_MODE forces a rebuild of the affected objects
+# instead of silently reusing stale ones compiled with different flags.
+BUILD_FLAGS := GUI=$(GUI) REL_FLAGS=$(REL_FLAGS) CFLAGS=$(CFLAGS)
+FLAGS_FILE := $(BUILD_DIR)/.build-flags
+
 # c source
-$(BUILD_DIR)/%.o: %.cpp $(HEAD)
+$(BUILD_DIR)/%.o: %.cpp $(HEAD) $(FLAGS_FILE)
 	$(MKDIR_P) $(dir $@)
 	$(CC) -c $< -o $@ $(REL_FLAGS) $(CFLAGS)
+
+$(FLAGS_FILE): FORCE
+	@$(MKDIR_P) $(dir $@)
+	@echo '$(BUILD_FLAGS)' | cmp -s - $@ || echo '$(BUILD_FLAGS)' > $@
+
+.PHONY: FORCE
+FORCE:
 
 # release
 $(BUILD_DIR)/$(EXEC): $(OBJS) $(MAIN_OBJ)
 	$(CC) $^ -o $@ $(CFLAGS) $(REL_FLAGS) $(LINK_FLAGS)
 
 # library
+# The archive is removed first because `ar rcs` only replaces/adds members
+# for the objects listed in $^; it never drops members that are no longer
+# part of the build (e.g. imgui/gui objects left over from a GUI=1 build),
+# which used to make GUI=0 builds silently link stale GUI code.
 $(BUILD_DIR)/$(TARGET_LIB): $(OBJS)
+	$(RM) $@
 	ar rcs $@ $^
 
 # tests

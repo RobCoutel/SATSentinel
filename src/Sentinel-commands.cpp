@@ -197,10 +197,6 @@ void sentinel::SATSentinel::register_commands() {
     "Mark a clause. The Sentinel will stop at notifications that involve this clause.",
     [this](int cl) {
       Tclause tcl(cl);
-      if (tcl.value >= state->clauses_size()) {
-        std::cout << "Clause " << tcl << " does not exist" << std::endl;
-        return false;
-      }
       markers->mark(tcl);
       return true;
     }, false));

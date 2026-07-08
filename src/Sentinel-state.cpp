@@ -202,8 +202,6 @@ std::string SentinelState::to_string(Tclause cl) const
   for (unsigned i = 0; i < c.literals.size() - c.n_deleted_literals; i++) {
     Tlit lit = c.literals[i];
     if (lit_true(lit)) {
-      if (lit == c1 || lit == c2)
-        satisfied_lits += "w";
       satisfied_lits += to_string(lit);
       if (lit == c1 && b1.value != 0)
         satisfied_lits += "(" + to_string(b1) + ")";
@@ -211,8 +209,6 @@ std::string SentinelState::to_string(Tclause cl) const
         satisfied_lits += "(" + to_string(b2) + ")";
       satisfied_lits += " ";
     } else if (lit_undef(lit)) {
-      if (lit == c1 || lit == c2)
-        undefined_lits += "w";
       undefined_lits += to_string(lit);
       if (lit == c1 && b1.value != 0)
         undefined_lits += "(" + to_string(b1) + ")";
@@ -220,8 +216,6 @@ std::string SentinelState::to_string(Tclause cl) const
         undefined_lits += "(" + to_string(b2) + ")";
       undefined_lits += " ";
     } else {
-      if (lit == c1 || lit == c2)
-        falsified_lits += "w";
       falsified_lits += to_string(lit);
       if (lit == c1 && b1.value != 0)
         falsified_lits += "(" + to_string(b1) + ")";

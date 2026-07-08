@@ -24,6 +24,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <filesystem>
 #include <iostream>
 
 namespace sentinel
@@ -34,7 +35,13 @@ namespace
   const ImVec4 COLOR_GREEN(0.20f, 0.75f, 0.20f, 1.0f);
   const ImVec4 COLOR_RED(0.85f, 0.20f, 0.20f, 1.0f);
   const ImVec4 COLOR_ORANGE(0.95f, 0.60f, 0.05f, 1.0f);
+  const ImVec4 COLOR_BLUE(0.25f, 0.55f, 0.95f, 1.0f);
   const ImVec4 COLOR_GRAY(0.60f, 0.60f, 0.60f, 1.0f);
+
+  // Colors cycled through by successive left clicks on an implication-graph
+  // node; index 0 is the first click's color.
+  const ImVec4 GRAPH_HIGHLIGHT_COLORS[] = { COLOR_RED, COLOR_ORANGE, COLOR_BLUE };
+  const int GRAPH_HIGHLIGHT_COLOR_COUNT = (int)(sizeof(GRAPH_HIGHLIGHT_COLORS) / sizeof(GRAPH_HIGHLIGHT_COLORS[0]));
 
   ImVec4 color_for_lit(const SentinelState* state, Tlit lit)
   {
@@ -113,6 +120,84 @@ namespace
       [](char a, char b) { return std::tolower((unsigned char)a) == std::tolower((unsigned char)b); });
     return it != haystack.end();
   }
+
+  // Renders text that may contain the ANSI SGR color escape sequences emitted by
+  // src/utils/printer.hpp's color macros (as used e.g. by SentinelState::to_string), splitting it
+  // into per-run ImGui::TextColored calls instead of printing the raw escape bytes. Falls back to a
+  // plain wrapped ImGui::Text when the string has no escape sequence, which is the common case.
+  void render_ansi_text(const std::string& text)
+  {
+    if (text.find('\033') == std::string::npos) {
+      ImGui::TextWrapped("%s", text.c_str());
+      return;
+    }
+
+    const ImVec4 default_color = ImGui::GetStyleColorVec4(ImGuiCol_Text);
+    ImVec4 color = default_color;
+    bool underline = false;
+    bool first_on_line = true;
+    std::string run;
+
+    auto flush = [&]() {
+      if (run.empty())
+        return;
+      if (!first_on_line)
+        ImGui::SameLine(0.0f, 0.0f);
+      first_on_line = false;
+      ImGui::TextColored(color, "%s", run.c_str());
+      if (underline) {
+        ImVec2 mn = ImGui::GetItemRectMin();
+        ImVec2 mx = ImGui::GetItemRectMax();
+        ImGui::GetWindowDrawList()->AddLine(ImVec2(mn.x, mx.y), ImVec2(mx.x, mx.y), ImGui::GetColorU32(color));
+      }
+      run.clear();
+    };
+
+    size_t i = 0;
+    while (i < text.size()) {
+      char c = text[i];
+      if (c == '\n') {
+        flush();
+        color = default_color;
+        underline = false;
+        first_on_line = true;
+        i++;
+        continue;
+      }
+      if (c == '\033' && i + 1 < text.size() && text[i + 1] == '[') {
+        flush();
+        size_t end = text.find('m', i + 2);
+        if (end == std::string::npos)
+          break; // malformed escape sequence: stop parsing rather than print garbage
+        std::string params = text.substr(i + 2, end - (i + 2));
+        i = end + 1;
+
+        size_t pos = 0;
+        while (true) {
+          size_t sep = params.find(';', pos);
+          std::string code_str = params.substr(pos, sep == std::string::npos ? std::string::npos : sep - pos);
+          int code = code_str.empty() ? 0 : std::atoi(code_str.c_str());
+          switch (code) {
+            case 0:  color = default_color; underline = false; break;
+            case 4:  underline = true; break;
+            case 31: color = COLOR_RED; break;
+            case 32: color = COLOR_GREEN; break;
+            case 33: color = COLOR_ORANGE; break;
+            case 37: color = COLOR_GRAY; break;
+            case 39: color = default_color; break;
+            default: break; // unsupported SGR code (e.g. bold): ignored
+          }
+          if (sep == std::string::npos)
+            break;
+          pos = sep + 1;
+        }
+        continue;
+      }
+      run += c;
+      i++;
+    }
+    flush();
+  }
 }
 
 SentinelGUI::SentinelGUI(const SentinelState* state, const SentinelMarker* markers, Options* options, const unsigned* display_level,
@@ -155,6 +240,37 @@ SentinelGUI::SentinelGUI(const SentinelState* state, const SentinelMarker* marke
   io.IniFilename = nullptr; // panels are fixed-position/size; nothing to persist
   ImGui::StyleColorsDark();
   _base_style = ImGui::GetStyle(); // unscaled reference for ctrl+scroll zoom
+
+  // The default ImGui font (ProggyClean) is an ASCII-only bitmap font, so aliases, decision-level
+  // "∞", and the Greek symbols used in NapSAT's variable/clause detail strings (δ, ρ, λ, γ, η, ζ, ...)
+  // would otherwise show up as tofu boxes. Load a Unicode TTF covering Latin + Greek and Coptic +
+  // Mathematical Operators if one is available on the system, falling back to the built-in font.
+  static const ImWchar glyph_ranges[] = {
+    0x0020, 0x00FF, // Basic Latin + Latin-1 Supplement
+    0x0370, 0x03FF, // Greek and Coptic
+    0x2200, 0x22FF, // Mathematical Operators (includes ∞)
+    0,
+  };
+  static const char* candidate_fonts[] = {
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+    "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+    "C:\\Windows\\Fonts\\arial.ttf",
+  };
+  ImFont* font = nullptr;
+  for (const char* path : candidate_fonts) {
+    if (std::filesystem::exists(path)) {
+      font = io.Fonts->AddFontFromFileTTF(path, 16.0f, nullptr, glyph_ranges);
+      break;
+    }
+  }
+  if (!font) {
+    std::cerr << ERROR_HEAD << "No Unicode-capable font found; Greek letters and other non-ASCII "
+                  "symbols will not display correctly in the GUI." << std::endl;
+    io.Fonts->AddFontDefault();
+  }
 
   ImGui_ImplGlfw_InitForOpenGL(_window, true);
   ImGui_ImplOpenGL3_Init("#version 130");
@@ -254,6 +370,7 @@ void SentinelGUI::pump_until_command(GuiDispatch dispatch, const std::string& st
   _mode_label = mode_label;
   _should_stop_prompting = false;
   _pumping = true;
+  _graph_highlighted_vars.clear();
 
   while (!_should_stop_prompting && !glfwWindowShouldClose(_window)) {
     glfwPollEvents();
@@ -487,7 +604,7 @@ void SentinelGUI::render_trail_panel()
     for (int lvl = top_level; lvl >= 0; lvl--) {
       ImGui::TableNextRow();
       ImGui::TableNextColumn();
-      ImGui::Text("%d: (%d)", lvl, (int)_state->level_counters()[lvl]);
+      ImGui::Text("%d:", lvl);
 
       for (int c = 0; c < visible_cols; c++) {
         ImGui::TableNextColumn();
@@ -649,7 +766,9 @@ void SentinelGUI::render_implication_graph_panel()
     ImVec2 center(0.5f * (p0.x + p1.x), 0.5f * (p0.y + p1.y));
     bool is_decision = _state->decision(var);
 
-    ImVec4 outline = color_for_lit(_state, lit);
+    auto highlight_it = _graph_highlighted_vars.find(var.value);
+    bool highlighted = highlight_it != _graph_highlighted_vars.end();
+    ImVec4 outline = highlighted ? GRAPH_HIGHLIGHT_COLORS[highlight_it->second] : color_for_lit(_state, lit);
     ImU32 outline_col = ImGui::GetColorU32(outline);
     bool marked = _markers->is_marked(var);
     ImU32 fill = ImGui::GetColorU32(marked ? ImVec4(0.35f, 0.35f, 0.10f, 1.0f) : ImVec4(0.16f, 0.16f, 0.18f, 1.0f));
@@ -670,7 +789,15 @@ void SentinelGUI::render_implication_graph_panel()
 
     ImGui::SetCursorScreenPos(p0);
     ImGui::PushID((int)var.value);
-    if (ImGui::InvisibleButton("node", ImVec2(node_size, node_size))) {
+    ImGui::InvisibleButton("node", ImVec2(node_size, node_size));
+    if (ImGui::IsItemClicked(ImGuiMouseButton_Left)) {
+      int next_step = highlighted ? highlight_it->second + 1 : 0;
+      if (next_step >= GRAPH_HIGHLIGHT_COLOR_COUNT)
+        _graph_highlighted_vars.erase(var.value);
+      else
+        _graph_highlighted_vars[var.value] = next_step;
+    }
+    if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) {
       clicked_var = var;
       open_var_detail = true;
     }
@@ -685,14 +812,14 @@ void SentinelGUI::render_implication_graph_panel()
   // must run from the ID-stack context outside the child window's per-node PushID.
   if (open_var_detail) {
     _selected_var = (int)clicked_var.value;
-    ImGui::OpenPopup("Variable Detail");
+    ImGui::OpenPopup("Variable Detail##graph");
   }
 
-  if (ImGui::BeginPopupModal("Variable Detail", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+  if (ImGui::BeginPopupModal("Variable Detail##graph", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
     if (_selected_var >= 0)
       render_variable_detail(Tvar((unsigned)_selected_var));
     ImGui::Separator();
-    if (ImGui::Button("Close"))
+    if (ImGui::Button("Close") || ImGui::IsKeyPressed(ImGuiKey_Escape))
       ImGui::CloseCurrentPopup();
     ImGui::EndPopup();
   }
@@ -762,7 +889,7 @@ void SentinelGUI::render_variables_panel()
     if (_selected_var >= 0)
       render_variable_detail(Tvar((unsigned)_selected_var));
     ImGui::Separator();
-    if (ImGui::Button("Close"))
+    if (ImGui::Button("Close") || ImGui::IsKeyPressed(ImGuiKey_Escape))
       ImGui::CloseCurrentPopup();
     ImGui::EndPopup();
   }
@@ -804,7 +931,7 @@ void SentinelGUI::render_variable_detail(Tvar var)
     ImGui::TextDisabled("No variable detail callback registered (see set_variable_detail_callback).");
   } else {
     std::string details = (*_variable_detail_callback)(var);
-    ImGui::TextWrapped("%s", details.c_str());
+    render_ansi_text(details);
   }
 }
 
@@ -849,37 +976,18 @@ void SentinelGUI::render_clauses_panel()
     for (int row = clipper.DisplayStart; row < clipper.DisplayEnd; row++) {
       Tclause cl(visible_clauses[row]);
       bool marked = _markers->is_marked(cl);
-      const std::vector<Tlit>& lits = _state->literals(cl);
-      unsigned n_deleted = _state->_clauses[cl].n_deleted_literals;
-      unsigned n_active_lits = (unsigned)lits.size() - n_deleted;
 
-      ImVec4 head_color = COLOR_RED;
-      bool any_true = false, any_undef = false;
-      for (unsigned k = 0; k < n_active_lits; k++) {
-        if (_state->lit_true(lits[k])) { any_true = true; break; }
-        if (_state->lit_undef(lits[k])) any_undef = true;
-      }
-      if (any_true) head_color = COLOR_GREEN;
-      else if (any_undef) head_color = COLOR_ORANGE;
-
+      // Reuse SentinelState::to_string(Tclause) rather than re-deriving the
+      // clause's coloring/blocker/deleted-literal display here: it's the
+      // canonical, ANSI-colored rendering shared with the terminal frontend.
+      // An empty-label Selectable has zero width (ItemSize is based on the
+      // label text, computed before the hit-test box is stretched to full
+      // row width below), so SameLine(0,0) lands right back at the row's
+      // start and the rich text draws over the row's clickable/highlight area.
       ImGui::PushID((int)cl.value);
-      ImGui::PushStyleColor(ImGuiCol_Text, marked ? ImVec4(1.0f, 1.0f, 0.4f, 1.0f) : head_color);
-      bool clicked = ImGui::Selectable(cl.to_string().c_str());
-      ImGui::PopStyleColor();
-      ImGui::SameLine();
-      for (unsigned k = 0; k < n_active_lits; k++) {
-        draw_lit(_state, lits[k]);
-        ImGui::SameLine();
-      }
-      if (n_deleted > 0) {
-        ImGui::TextDisabled("|");
-        ImGui::SameLine();
-        for (unsigned k = n_active_lits; k < lits.size(); k++) {
-          draw_lit(_state, lits[k]);
-          ImGui::SameLine();
-        }
-      }
-      ImGui::NewLine();
+      bool clicked = ImGui::Selectable("##row", marked);
+      ImGui::SameLine(0.0f, 0.0f);
+      render_ansi_text(_state->to_string(cl));
       if (clicked) {
         _selected_clause = (int)cl.value;
         open_clause_detail = true;
@@ -899,7 +1007,7 @@ void SentinelGUI::render_clauses_panel()
     if (_selected_clause >= 0)
       render_clause_detail(Tclause((unsigned)_selected_clause));
     ImGui::Separator();
-    if (ImGui::Button("Close"))
+    if (ImGui::Button("Close") || ImGui::IsKeyPressed(ImGuiKey_Escape))
       ImGui::CloseCurrentPopup();
     ImGui::EndPopup();
   }
@@ -911,7 +1019,9 @@ void SentinelGUI::render_clause_detail(Tclause cl)
     ImGui::TextColored(COLOR_RED, "Clause is inactive or undefined.");
     return;
   }
-  ImGui::Text("Clause: %s", cl.to_string().c_str());
+  ImGui::TextUnformatted("Clause:");
+  ImGui::SameLine();
+  render_ansi_text(_state->to_string(cl));
   ImGui::Text("Learnt: %s", _state->clause_learnt(cl) ? "yes" : "no");
   ImGui::Text("External: %s", _state->clause_external(cl) ? "yes" : "no");
   ImGui::Text("Marked: %s", _markers->is_marked(cl) ? "yes" : "no");
@@ -967,7 +1077,7 @@ void SentinelGUI::render_clause_detail(Tclause cl)
     ImGui::TextDisabled("No clause detail callback registered (see set_clause_detail_callback).");
   } else {
     std::string details = (*_clause_detail_callback)(cl);
-    ImGui::TextWrapped("%s", details.c_str());
+    render_ansi_text(details);
   }
 }
 
@@ -1002,7 +1112,10 @@ void SentinelGUI::render_command_panel()
 
   ImGui::Separator();
   ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.3f, 1.0f), "%s", _mode_label.c_str());
-  ImGui::TextWrapped("%s", _status_header.c_str());
+  // Notification messages (e.g. NapSAT's clause_to_string()/lit_to_string())
+  // embed ANSI SGR color escapes, so this must go through render_ansi_text()
+  // rather than a raw Text call or the escape bytes print as garbage.
+  render_ansi_text(_status_header);
   ImGui::Separator();
 
   ImGui::TextUnformatted("Log:");
@@ -1018,13 +1131,18 @@ void SentinelGUI::render_command_panel()
         break;
     }
     if (count > 1) {
-      ImGui::TextDisabled("%s (x%u)", entry.text.c_str(), count);
+      // Same reasoning as the status header above: entry.text may carry ANSI
+      // color escapes, so route it through render_ansi_text() instead of
+      // TextDisabled's raw "%s" formatting.
+      ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+      render_ansi_text(entry.text + " (x" + std::to_string(count) + ")");
+      ImGui::PopStyleColor();
       i += count - 1;
       continue;
     }
 
     ImGui::PushStyleColor(ImGuiCol_Text, entry.success ? ImVec4(0.75f, 0.75f, 0.75f, 1.0f) : COLOR_RED);
-    ImGui::TextWrapped("%s", entry.text.c_str());
+    render_ansi_text(entry.text);
     ImGui::PopStyleColor();
   }
   if (_scroll_log_to_bottom) {

@@ -25,6 +25,7 @@
 
 #include <functional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 // Forward declared rather than included, to keep the GLFW headers out
@@ -187,6 +188,14 @@ namespace sentinel
     enum class TrailView { TRAIL, IMPLICATION_GRAPH };
     TrailView _trail_view = TrailView::TRAIL;
     int _trail_offset = 0;
+
+    // Vars whose implication-graph node color has been cycled by a left click
+    // (red -> orange -> blue -> back to normal). Value is the cycle step
+    // (1 = red, 2 = orange, 3 = blue); absent means not highlighted.
+    // Purely a display toggle (not persisted state); cleared whenever a new
+    // notification is played, i.e. on every fresh (non-reentrant) call to
+    // pump_until_command().
+    std::unordered_map<unsigned, int> _graph_highlighted_vars;
 
     // variables panel
     char _var_filter[64] = "";
