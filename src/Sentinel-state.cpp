@@ -20,13 +20,13 @@
 namespace sentinel
 {
 
-SentinelState::SentinelState(SentinelOptions* options)
+SentinelState::SentinelState(Options* options)
 {
   _level_counters.push_back(0);
   if (options) {
     _options = options;
   } else {
-    _options = new SentinelOptions();
+    _options = new Options();
   }
 
   register_invariants();
@@ -84,23 +84,24 @@ bool SentinelState::decrement_level_counter(Tlevel level)
   assert(level.value < _level_counters.size());
   _level_counters[level.value]--;
   if (_level_counters[level.value] == 0) {
-    for (unsigned i = level.value + 1; i < _level_counters.size(); i++) {
-      _level_counters[i - 1] = _level_counters[i];
+    // if the level is top level, then we can remove all the empty levels from the top
+    if (level.value == _level_counters.size() - 1) {
+      // we do not remove level 0
+      while (_level_counters.size() > 1 && _level_counters.back() == 0) {
+        _level_counters.pop_back();
+      }
     }
-    _level_counters.pop_back();
     return true;
   }
   return false;
 }
 
-void SentinelState::increment_level_counter(Tlevel level, bool create)
+void SentinelState::increment_level_counter(Tlevel level)
 {
-  if (!create) {
-    assert(level.value < _level_counters.size());
-    _level_counters[level.value]++;
-  } else {
-    _level_counters.insert(_level_counters.begin() + level.value, 1);
+  if (level.value >= _level_counters.size()) {
+    _level_counters.resize(level.value + 1, 0);
   }
+  _level_counters[level.value]++;
 }
 
 
@@ -147,15 +148,15 @@ std::string SentinelState::to_string(Tvar var) const
   else
     s += var.to_string() + " ";
   if (active(var)) {
-    if (value(var) == VAR_UNDEF) {
+    if (value(var) == VAL_UNDEF) {
       s += ORANGE;
       s += "undef";
       s += RESET;
-    } else if (value(var) == VAR_TRUE) {
+    } else if (value(var) == VAL_TRUE) {
       s += GREEN;
       s += "true";
       s += RESET;
-    } else if (value(var) == VAR_FALSE) {
+    } else if (value(var) == VAL_FALSE) {
       s += RED;
       s += "false";
       s += RESET;
@@ -201,8 +202,6 @@ std::string SentinelState::to_string(Tclause cl) const
   for (unsigned i = 0; i < c.literals.size() - c.n_deleted_literals; i++) {
     Tlit lit = c.literals[i];
     if (lit_true(lit)) {
-      if (lit == c1 || lit == c2)
-        satisfied_lits += "w";
       satisfied_lits += to_string(lit);
       if (lit == c1 && b1.value != 0)
         satisfied_lits += "(" + to_string(b1) + ")";
@@ -210,8 +209,6 @@ std::string SentinelState::to_string(Tclause cl) const
         satisfied_lits += "(" + to_string(b2) + ")";
       satisfied_lits += " ";
     } else if (lit_undef(lit)) {
-      if (lit == c1 || lit == c2)
-        undefined_lits += "w";
       undefined_lits += to_string(lit);
       if (lit == c1 && b1.value != 0)
         undefined_lits += "(" + to_string(b1) + ")";
@@ -219,8 +216,6 @@ std::string SentinelState::to_string(Tclause cl) const
         undefined_lits += "(" + to_string(b2) + ")";
       undefined_lits += " ";
     } else {
-      if (lit == c1 || lit == c2)
-        falsified_lits += "w";
       falsified_lits += to_string(lit);
       if (lit == c1 && b1.value != 0)
         falsified_lits += "(" + to_string(b1) + ")";

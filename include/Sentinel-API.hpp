@@ -50,7 +50,7 @@ namespace sentinel
    * @param options Configuration options for the sentinel.
    * @return A newly allocated sentinel instance.
    */
-  SATSentinel* create_sentinel(const SentinelOptions& options);
+  SATSentinel* create_sentinel(const Options& options);
 
   /**
    * @brief Destroys a sentinel instance and releases all associated resources.
@@ -293,6 +293,24 @@ namespace sentinel
    */
   void set_command_parser(SATSentinel* sentinel,
                           Tparser* parser);
+
+  /**
+   * @brief Registers a callback function to provide detailed information about a variable.
+   * @param sentinel Sentinel instance.
+   * @param callback Function that takes a variable and returns a string with detailed information.
+   * @pre callback is a valid function that returns a string representation of the variable's details.
+   */
+  void set_variable_detail_callback(SATSentinel* sentinel,
+                                    std::function<std::string(Tvar)> callback);
+
+  /**
+   * @brief Registers a callback function to provide detailed information about a clause.
+   * @param sentinel Sentinel instance.
+   * @param callback Function that takes a clause and returns a string with detailed information.
+   * @pre callback is a valid function that returns a string representation of the clause's details.
+   */
+  void set_clause_detail_callback(SATSentinel* sentinel,
+                                  std::function<std::string(Tclause)> callback);
 
   /**
    * @brief Registers a custom invariant checker.

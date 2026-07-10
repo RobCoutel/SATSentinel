@@ -18,6 +18,10 @@
 #include "Sentinel-notifications.hpp"
 #include "utils/printer.hpp"
 
+#ifdef SENTINEL_GUI_ENABLED
+#include "gui/SentinelGUI.hpp"
+#endif
+
 #include <iostream>
 #include <vector>
 #include <string>
@@ -25,22 +29,44 @@
 namespace sentinel
 {
 
-SATSentinel::SATSentinel(SentinelOptions* options)
+SATSentinel::SATSentinel(Options* options)
 {
   if (options) {
     _options = options;
   } else {
-    _options = new SentinelOptions();
+    _options = new Options();
   }
   markers = new SentinelMarker();
   state = new SentinelState(options);
   display_level = _options->default_display_level;
 
   register_commands();
+
+#ifdef SENTINEL_GUI_ENABLED
+  if (_options->gui) {
+    gui_view = new SentinelGUI(state, markers, _options, &display_level,
+                                &_variable_detail_callback, &_clause_detail_callback,
+                                [this]() { return is_real_time(); });
+    if (!gui_view->is_valid()) {
+      std::cout << WARNING_HEAD << "Failed to initialize the GUI (no display / GLFW init failure?); falling back to the terminal frontend." << std::endl;
+      delete gui_view;
+      gui_view = nullptr;
+      _options->gui = false;
+    }
+  }
+#else
+  if (_options->gui) {
+    std::cout << WARNING_HEAD << "GUI requested but SATSentinel was built without GUI support (rebuild with `make GUI=1`); continuing without GUI." << std::endl;
+    _options->gui = false;
+  }
+#endif
 }
 
 SATSentinel::~SATSentinel()
 {
+#ifdef SENTINEL_GUI_ENABLED
+  delete gui_view;
+#endif
   delete markers;
   delete state; // this will delete the options
   if (external_parser) {
@@ -60,8 +86,11 @@ bool SATSentinel::next()
   bool display_state = false;
   while (current_notification_index < notifications.size()) {
     notif::notification* notif = notifications[current_notification_index++];
-    bool success = notif->apply(state);
-    if (success && notif->get_event_level(markers) > display_level) {
+    success = notif->apply(state);
+    display_state |= !success;
+    display_state |= notif->get_event_level(markers) <= display_level;
+    display_state |= breakpoints.find(current_notification_index) != breakpoints.end();
+    if (!display_state) {
       continue;
     }
 
@@ -85,25 +114,36 @@ bool SATSentinel::next()
 bool SATSentinel::back()
 {
   if (current_notification_index == 0) {
+    // Nothing to roll back to; re-display the current (start-of-history) state
+    // instead of silently returning, so the GUI/terminal prompt loop keeps
+    // running rather than being torn down as if a stopping command ran.
+    if (!_options->check_only) {
+      get_navigation_commands();
+    }
     return true;
   }
   bool success = true;
-  bool display_state = false;
   while (current_notification_index > 0) {
     notif::notification* notif = notifications[--current_notification_index];
-    bool success = notif->rollback(state);
-    if (success && notif->get_event_level(markers) > display_level) {
+    bool step_success = notif->rollback(state);
+    success = success && step_success;
+    if (step_success && notif->get_event_level(markers) > display_level) {
       continue;
     }
-    if (!success) {
+    if (!step_success) {
       failed = true;
       std::cerr << "Notification rollback failed: " << notif->get_message() << std::endl;
     }
-    display_state = true;
     break;
   }
-  if (display_state) {
-    get_external_commands();
+  // The loop above always leaves current_notification_index strictly below
+  // notifications.size() (real time), whether it stopped on a displayable
+  // notification or ran all the way down to the start of history. Either way
+  // we must re-enter the prompt loop rather than returning: letting this
+  // "stop" propagate to the caller would release control back to the solver
+  // while the sentinel is not on top of the notification stack.
+  if (!_options->check_only) {
+    get_navigation_commands();
   }
   return success;
 }

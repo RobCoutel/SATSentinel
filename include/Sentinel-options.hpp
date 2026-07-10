@@ -8,22 +8,18 @@
  * @file include/Sentinel-options.hpp
  * @author Robin Coutelier
  *
- * @brief SentinelOptions configuration struct controlling interactive mode, display level, and
+ * @brief Options configuration struct controlling interactive mode, display level, and
  * which built-in invariant checks are enabled at runtime.
  */
 #pragma once
 
 #include <string>
+#include <vector>
 
 namespace sentinel
 {
-  struct SentinelOptions
+  struct Options
   {
-    /**
-     * @brief If true, when the user sends a checkpoint, the sentinel will interrupt the solver execution and pass the user command to the solver.
-     */
-    bool interactive = false;
-
     /**
      * @brief Default display level. Notifications with a level higher than or equal to this level will interrupt the solver, display the state, and prompt the user for a navigation command.
      */
@@ -38,6 +34,12 @@ namespace sentinel
      * @brief If true, the sentinel will crash the execution if a notification fails. Otherwise, the sentinel will display an error and continue the execution.
      */
     bool crash_on_error = false;
+
+    /**
+     * @brief If true, the sentinel will display a graphical interface (trail, variables, clauses, command and options panels) instead of printing to the terminal.
+     * @note Has no effect unless SATSentinel was built with GUI support (`make GUI=1`). If GUI support was not compiled in, this flag is silently ignored and a warning is logged.
+     */
+    bool gui = false;
 
   /**
    * Terminology:
@@ -129,5 +131,23 @@ namespace sentinel
      * @note Invariant Cost: O(|F|) where |F| is the number of clauses.
      */
     bool check_strong_watched_literals = false;
+
+    /**
+     * @brief In interractive mode, the sentinel will read the commands in the given file. When a checkpoint is reached, the sentinel will first take the commands from that file before asking the user for input.
+     */
+    std::string commands_file = "";
+
+    Options() = default;
+
+    /**
+     * @brief Parses a list of CLI tokens (e.g. the tokens found inside the `-o { ... }` group on the
+     * NapSAT command line, or SATSentinel's own argv) into a Options.
+     */
+    explicit Options(std::vector<std::string>& tokens);
+
+    /**
+     * @brief Runtime-generated help text describing every sentinel/observer option.
+     */
+    static std::string get_help_text();
   };
 }
