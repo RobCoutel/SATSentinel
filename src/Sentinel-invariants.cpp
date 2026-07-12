@@ -173,6 +173,11 @@ bool SentinelState::check_topological_order(string &err_msg) const
 
 bool SentinelState::check_watched_literals(string &err_msg) const
 {
+
+  // if no watch literal invariants are set, just skip it
+  if (_watch_invariants.empty())
+    return true;
+
   const string error_header = ERROR_HEAD + "Invariant violation (watch literals): ";
   bool success = true;
   for (Tclause cl = 0; cl.value < _clauses.size(); cl++) {
