@@ -50,7 +50,10 @@ void SATSentinel::set_command_parser(Tparser* parser)
       commands.push_back(line);
     }
     // reverse the commands so that we can pop them from the back
-    std::reverse(commands.begin(), commands.end());
+    // for some reason, std::reverse does not compile on the zebra nodes.
+    for (size_t i = 0; i < commands.size() / 2; i++) {
+      std::swap(commands[i], commands[commands.size() - 1 - i]);
+    }
   }
 
   external_parser = parser;
