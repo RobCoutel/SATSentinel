@@ -43,11 +43,11 @@ namespace
   const ImVec4 GRAPH_HIGHLIGHT_COLORS[] = { COLOR_RED, COLOR_ORANGE, COLOR_BLUE };
   const int GRAPH_HIGHLIGHT_COLOR_COUNT = (int)(sizeof(GRAPH_HIGHLIGHT_COLORS) / sizeof(GRAPH_HIGHLIGHT_COLORS[0]));
 
+  // Default color for a trail/implication-graph literal: green once it has been
+  // propagated, blue while it's still waiting to be propagated.
   ImVec4 color_for_lit(const SentinelState* state, Tlit lit)
   {
-    if (state->lit_undef(lit)) return COLOR_ORANGE;
-    if (state->lit_true(lit))  return COLOR_GREEN;
-    return COLOR_RED;
+    return state->propagated(lit) ? COLOR_GREEN : COLOR_BLUE;
   }
 
   ImVec4 color_for_val(Tval v)
