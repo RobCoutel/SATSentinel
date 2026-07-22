@@ -210,8 +210,8 @@ namespace sentinel
     SOFT_ASSERT(lit.var().value < state->_variables.size());
     SOFT_ASSERT(state->active(lit.var()));
     SOFT_ASSERT(!state->lit_undef(lit));
-    // SOFT_ASSERT(!state->propagated(lit));
 
+    was_propagated = state->propagated(lit.var());
     state->propagated(lit.var()) = true;
     return true;
   }
@@ -222,9 +222,8 @@ namespace sentinel
     assert(lit.var().value < state->_variables.size());
     assert(state->active(lit.var()));
     assert(!state->lit_undef(lit));
-    // assert(state->propagated(lit.var()));
 
-    state->propagated(lit.var()) = false;
+    state->propagated(lit.var()) = was_propagated;
     return true;
   }
 
@@ -244,7 +243,7 @@ namespace sentinel
     SOFT_ASSERT(state->active(lit.var()));
     SOFT_ASSERT(!state->lit_undef(lit));
     SOFT_ASSERT(state->propagated(lit.var()) == true);
-
+    was_propagated = state->propagated(lit.var());
     state->propagated(lit.var()) = false;
     return true;
   }
@@ -257,7 +256,7 @@ namespace sentinel
     assert(!state->lit_undef(lit));
     SOFT_ASSERT(state->propagated(lit.var()) == false);
 
-    state->propagated(lit.var()) = true;
+    state->propagated(lit.var()) = was_propagated;
     return true;
   }
 

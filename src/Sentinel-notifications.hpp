@@ -231,6 +231,7 @@ namespace sentinel::notif
   public:
     static const unsigned DEFAULT_LEVEL = 6;
     static const ENotifType NTYPE = PROPAGATION;
+    bool was_propagated = false;
 
     unsigned get_event_level(SentinelMarker* observer) const noexcept override;
     ENotifType get_type() const noexcept override { return NTYPE; }
@@ -256,6 +257,7 @@ namespace sentinel::notif
   public:
     static const unsigned DEFAULT_LEVEL = 6;
     static const ENotifType NTYPE = UNPROPAGATION;
+    bool was_propagated = false;
 
     unsigned get_event_level(SentinelMarker* marker) const noexcept override;
     ENotifType get_type() const noexcept override { return NTYPE; }
