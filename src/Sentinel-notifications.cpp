@@ -100,6 +100,7 @@ namespace sentinel
     SOFT_ASSERT(lit.var().value < state->_variables.size());
     SOFT_ASSERT(state->_variables[lit.var().value].active);
     SOFT_ASSERT(state->lit_undef(lit));
+    SOFT_ASSERT(reason == CLAUSE_UNDEF || reason == CLAUSE_LAZY || reason == CLAUSE_ASSUMPTION || reason.value < state->_clauses.size());
 
     Tvar var = lit.var();
     state->value(var) = lit.pol() == 1 ? VAL_TRUE : VAL_FALSE;
@@ -107,6 +108,8 @@ namespace sentinel
     if (reason == CLAUSE_UNDEF) {
       state->level(var) = state->_level_counters.size();
       state->increment_level_counter(state->level(var));
+    } else if (reason == CLAUSE_LAZY || reason == CLAUSE_ASSUMPTION) {
+      state->level(var) = state->_level_counters.size() - 1;
     } else {
       Tlevel reason_level = 0;
       for (const auto& lit : state->literals(reason)) {
