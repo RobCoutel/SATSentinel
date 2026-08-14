@@ -178,6 +178,12 @@ namespace sentinel
     float _var_w = -1.0f;
     float _command_h = -1.0f;
 
+    // Previous frame's window size, used to rescale the splitter positions above
+    // proportionally when the window is resized so panel ratios are preserved
+    // rather than the growth/shrink being dumped entirely on the bottom-right panels.
+    float _prev_W = -1.0f;
+    float _prev_H = -1.0f;
+
     // Ctrl+scroll UI zoom. Applied by rescaling a saved copy of the base style
     // every frame (ImGuiStyle::ScaleAllSizes is cumulative, so it can't be
     // called directly on the live style each frame) and by setting FontGlobalScale.

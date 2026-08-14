@@ -85,7 +85,7 @@ bool SentinelState::check_implied_levels(string &err_msg) const
   const string error_header = ERROR_HEAD + "Invariant violation (level ordering): ";
   bool success = true;
   for (Tlit lit : _trail) {
-    if (decision(lit) || lazy(lit))
+    if (reason(lit).special())
       continue;
     clause c = _clauses[reason(lit)];
     if (!c.active) {
@@ -153,7 +153,7 @@ bool SentinelState::check_topological_order(string &err_msg) const
   for (Tlit lit : _trail) {
     assert(lit.var().value < visited.size());
     visited[lit.var().value] = true;
-    if (reason(lit) == CLAUSE_UNDEF || reason(lit) == CLAUSE_LAZY)
+    if (reason(lit).special())
       continue;
     clause c = _clauses[reason(lit)];
     if (!c.active) {

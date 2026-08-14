@@ -416,6 +416,26 @@ void SentinelGUI::pump_until_command(GuiDispatch dispatch, const std::string& st
     const float zoom_margin = 10.0f;
     const float zoom_strip_h = zoom_widget_h + zoom_margin * 2.0f;
 
+    // Panel sizes persist in pixels, so a window resize would otherwise leave
+    // every splitter position fixed and dump all of the size change onto the
+    // bottom-right panels (the only ones measured from the far edge). Rescale
+    // the splitter positions by the same factor the window just changed by, so
+    // panel ratios stay put instead.
+    if (_prev_W > 0.0f && _prev_H > 0.0f) {
+      float wx = W / _prev_W;
+      float hy = H / _prev_H;
+      if (_left_w >= 0.0f)
+        _left_w *= wx;
+      if (_var_w >= 0.0f)
+        _var_w *= wx;
+      if (_trail_h >= 0.0f)
+        _trail_h *= hy;
+      if (_command_h >= 0.0f)
+        _command_h *= hy;
+    }
+    _prev_W = W;
+    _prev_H = H;
+
     // Panel sizes are user-adjustable (see render_splitter() calls below) and
     // persist in pixels across frames; seed them from the classic fixed-fraction
     // layout the first time a window size is known, then just keep them in bounds.
@@ -686,10 +706,8 @@ void SentinelGUI::render_implication_graph_panel()
   for (size_t i = 0; i < trail_size; i++) {
     Tlit lit = _state->trail_literal(i);
     Tvar var = lit.var();
-    if (_state->decision(var) || _state->lazy(var))
-      continue;
     Tclause reason = _state->reason(var);
-    if (reason == CLAUSE_UNDEF)
+    if (reason.special())
       continue;
 
     const std::vector<Tlit>& lits = _state->literals(reason);
@@ -776,6 +794,18 @@ void SentinelGUI::render_implication_graph_panel()
     if (is_decision) {
       draw_list->AddRectFilled(p0, p1, fill);
       draw_list->AddRect(p0, p1, outline_col, 0.0f, 0, 1.5f * _ui_scale);
+    } else if (_state->assumption(var)) {
+      float radius = node_size / 2.0f - _ui_scale;
+      draw_list->AddNgonFilled(center, radius, fill, 3);
+      draw_list->AddNgon(center, radius, outline_col, 3, 1.5f * _ui_scale);
+    } else if (_state->lazy(var)) {
+      float radius = node_size / 2.0f - _ui_scale;
+      draw_list->AddNgonFilled(center, radius, fill, 6);
+      draw_list->AddNgon(center, radius, outline_col, 6, 1.5f * _ui_scale);
+    } else if (_state->root(var)) {
+      float radius = node_size / 2.0f - _ui_scale;
+      draw_list->AddNgonFilled(center, radius, fill, 5);
+      draw_list->AddNgon(center, radius, outline_col, 5, 1.5f * _ui_scale);
     } else {
       float radius = node_size / 2.0f - _ui_scale;
       draw_list->AddCircleFilled(center, radius, fill);

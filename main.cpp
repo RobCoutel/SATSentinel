@@ -103,16 +103,55 @@ void configure_command_parser(SATSentinel* sentinel, CommandParser& parser)
       return true;
     }));
 
-  parser.add_command(CommandIntegers(
+  parser.add_command(Command(
     "ASSIGN",
     "Assign a literal to true, with an optional reason clause",
-    [sentinel](const std::vector<int>& args) {
-      if (args.size() < 1 || args.size() > 2) {
+    [sentinel](const std::string& args) {
+      std::vector<std::string> tokens;
+      std::string::size_type start = 0;
+      while (start < args.size()) {
+        std::string::size_type end = args.find(' ', start);
+        if (end == std::string::npos) {
+          end = args.size();
+        }
+        std::string token = args.substr(start, end - start);
+        if (!token.empty()) {
+          tokens.push_back(token);
+        }
+        start = end + 1;
+      }
+      if (tokens.size() < 1 || tokens.size() > 2) {
         std::cout << "Invalid arguments (one or two arguments expected)" << std::endl;
         return false;
       }
-      Tlit lit(Tvar(abs(args[0])), args[0] > 0);
-      Tclause reason = (args.size() == 2) ? Tclause(args[1]) : CLAUSE_UNDEF;
+      int lit_value;
+      try {
+        lit_value = std::stoi(tokens[0]);
+      } catch (std::invalid_argument const&) {
+        std::cout << "Invalid argument \"" << tokens[0] << "\" - integer expected" << std::endl;
+        return false;
+      }
+      Tlit lit(Tvar(abs(lit_value)), lit_value > 0);
+      Tclause reason = CLAUSE_UNDEF;
+      if (tokens.size() == 2) {
+        const std::string& r = tokens[1];
+        if (r == "ASSUMPTION") {
+          reason = CLAUSE_ASSUMPTION;
+        } else if (r == "LAZY") {
+          reason = CLAUSE_LAZY;
+        } else if (r == "ROOT") {
+          reason = CLAUSE_ROOT;
+        } else if (r == "ERROR") {
+          reason = CLAUSE_ERROR;
+        } else {
+          try {
+            reason = Tclause((unsigned)std::stoi(r));
+          } catch (std::invalid_argument const&) {
+            std::cout << "Invalid argument \"" << r << "\" - reason keyword or clause id expected" << std::endl;
+            return false;
+          }
+        }
+      }
       if (!assign(sentinel, lit, reason)) {
         std::cout << "Literal " << lit << " failed to be assigned." << std::endl;
         return false;

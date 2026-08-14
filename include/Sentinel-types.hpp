@@ -128,10 +128,14 @@ namespace sentinel
     inline bool operator<(const Tclause& other) const { return value < other.value; }
     inline void operator++() { value++; }
     inline void operator++(int) { value++; }
+    // true for UNDEF/ROOT/LAZY/ASSUMPTION/ERROR: any reason that is not an index into the clause database.
+    inline bool special() const { return value >= 0xFFFFFFFB; }
     inline std::string to_string() const {
       if (value == 0xFFFFFFFF) return "UNDEF";
-      if (value == 0xFFFFFFFE) return "LAZY";
-      if (value == 0xFFFFFFFD) return "ASSUMPTION";
+      if (value == 0xFFFFFFFE) return "ROOT";
+      if (value == 0xFFFFFFFD) return "LAZY";
+      if (value == 0xFFFFFFFC) return "ASSUMPTION";
+      if (value == 0xFFFFFFFB) return "ERROR";
       return "C" + std::to_string(value);
     }
     inline std::ostream& operator<<(std::ostream& os) const { os << "C" << to_string(); return os; }
@@ -139,7 +143,7 @@ namespace sentinel
 
   using Tparser = std::function<bool(std::string)>;
 
-  const Tlit LIT_UNDEF = 0;
+  const Tlit LIT_UNDEF = 0xFFFFFFFF;
 
   const Tval VAL_FALSE = 0;
   const Tval VAL_TRUE  = 1;
@@ -151,9 +155,10 @@ namespace sentinel
   const Tlevel LEVEL_ERROR = 0xFFFFFFFE;
 
   const Tclause CLAUSE_UNDEF      = 0xFFFFFFFF;
-  const Tclause CLAUSE_LAZY       = 0xFFFFFFFE;
-  const Tclause CLAUSE_ASSUMPTION = 0xFFFFFFFD;
-  const Tclause CLAUSE_ERROR      = 0xFFFFFFFC;
+  const Tclause CLAUSE_ROOT       = 0xFFFFFFFE;
+  const Tclause CLAUSE_LAZY       = 0xFFFFFFFD;
+  const Tclause CLAUSE_ASSUMPTION = 0xFFFFFFFC;
+  const Tclause CLAUSE_ERROR      = 0xFFFFFFFB;
 }
 
 namespace std {

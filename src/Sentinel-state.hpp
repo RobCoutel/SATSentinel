@@ -57,8 +57,12 @@ public:
   inline bool decision(Tlit lit) const { return decision(lit.var()); }
   inline bool lazy(Tvar var) const     { return reason(var) == CLAUSE_LAZY; }
   inline bool lazy(Tlit lit) const     { return lazy(lit.var()); }
-  inline bool justified(Tvar var) const { return !decision(var) && !lazy(var); }
-  inline bool justified(Tlit lit) const { return !decision(lit) && !lazy(lit); }
+  inline bool root(Tvar var) const     { return reason(var) == CLAUSE_ROOT; }
+  inline bool root(Tlit lit) const     { return root(lit.var()); }
+  inline bool assumption(Tvar var) const { return reason(var) == CLAUSE_ASSUMPTION; }
+  inline bool assumption(Tlit lit) const { return assumption(lit.var()); }
+  inline bool justified(Tvar var) const { return !reason(var).special(); }
+  inline bool justified(Tlit lit) const { return !reason(lit).special(); }
 
   inline bool& propagated(Tvar var)       { return _variables[var.value].propagated; }
   inline bool  propagated(Tvar var) const { return _variables[var.value].propagated; }
