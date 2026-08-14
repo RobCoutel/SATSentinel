@@ -40,6 +40,10 @@ SATSentinel::SATSentinel(Options* options)
   state = new SentinelState(options);
   display_level = _options->default_display_level;
 
+  if (!_options->save_file.empty() && !execution_log.open(_options->save_file)) {
+    std::cout << WARNING_HEAD << "Could not open save file for writing: " << _options->save_file << std::endl;
+  }
+
   register_commands();
 
 #ifdef SENTINEL_GUI_ENABLED
@@ -77,6 +81,9 @@ SATSentinel::~SATSentinel()
 bool SATSentinel::notify(notif::notification* notif)
 {
   notifications.push_back(notif);
+  if (execution_log.is_open()) {
+    execution_log.record(*notif);
+  }
   return next();
 }
 

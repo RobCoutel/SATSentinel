@@ -44,6 +44,13 @@ namespace sentinel
                  "asking the user for input.")
       .alias("-commands")
       .alias("--command-file");
+    p.add_string("--save-file", t.save_file,
+                 "If set, every notification sent to the sentinel is recorded to this file, in "
+                 "human-readable command form, as it happens (flushed immediately, so a crash "
+                 "still leaves usable logs). The log can later be replayed via the sentinel's "
+                 "positional load-file argument.")
+      .alias("-save-file")
+      .alias("--save");
 
     p.set_category("INVARIANT CHECKS");
     p.add_bool("--check-no-conflicts", t.check_no_conflicts,

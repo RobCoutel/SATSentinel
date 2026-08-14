@@ -137,6 +137,14 @@ namespace sentinel
      */
     std::string commands_file = "";
 
+    /**
+     * @brief If non-empty, every notification sent to the sentinel is appended, in human-readable
+     * command form, to this file as it happens. The file is flushed after every write so that a
+     * crash does not lose previously recorded entries. The resulting log can be replayed by
+     * passing it as the positional load-file argument to the sentinel executable.
+     */
+    std::string save_file = "";
+
     Options() = default;
 
     /**

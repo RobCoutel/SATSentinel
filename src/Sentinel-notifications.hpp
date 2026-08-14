@@ -93,6 +93,12 @@ namespace sentinel::notif
     virtual const std::string get_message() const noexcept = 0;
 
     /**
+     * @brief Returns the command text that, when parsed by the sentinel's command parser,
+     * reproduces this notification. Used to record a human-readable, replayable execution log.
+     */
+    virtual std::string to_command() const = 0;
+
+    /**
      * @brief Applies the notification to the observer.
      * @details Also updates internal variables of the notification to allow rollback.
      * @param state The state of the solver that will be modified by the notification.
@@ -132,6 +138,8 @@ namespace sentinel::notif
 
     explicit new_variable(Tvar var) : var(var) {}
 
+    std::string to_command() const override;
+
     bool apply(SentinelState* state) override;
     bool rollback(SentinelState* state) override;
   };
@@ -151,14 +159,16 @@ namespace sentinel::notif
     Tclause reason;
 
   public:
-    static const unsigned DEFAULT_LEVEL = 2;
+    static const unsigned DEFAULT_LEVEL = 5;
     static const ENotifType NTYPE = ASSIGNMENT;
 
-    unsigned get_event_level(SentinelMarker* marker) const noexcept override;
+    unsigned get_event_level(SentinelMarker* marker) const noexcept;
     ENotifType get_type() const noexcept override { return NTYPE; }
     const std::string get_message() const noexcept override { return "Assigned literal : " + lit.to_string() + " with reason " + reason.to_string(); }
 
     explicit assignment(Tlit lit, Tclause reason) : lit(lit), reason(reason) {}
+
+    std::string to_command() const override;
 
     bool apply(SentinelState* state) override;
     bool rollback(SentinelState* state) override;
@@ -188,6 +198,8 @@ namespace sentinel::notif
 
     explicit update_level(Tlit lit, Tlevel level) : lit(lit), level(level) {}
 
+    std::string to_command() const override;
+
     bool apply(SentinelState* state) override;
     bool rollback(SentinelState* state) override;
   };
@@ -212,6 +224,8 @@ namespace sentinel::notif
     const std::string get_message() const noexcept override { return "Update reason : " + lit.to_string() + " updated to reason " + reason.to_string(); }
 
     explicit update_reason(Tlit lit, Tclause reason) : lit(lit), reason(reason) {}
+
+    std::string to_command() const override;
 
     bool apply(SentinelState* state) override;
     bool rollback(SentinelState* state) override;
@@ -239,6 +253,8 @@ namespace sentinel::notif
 
     explicit propagation(Tlit lit) : lit(lit) {}
 
+    std::string to_command() const override;
+
     bool apply(SentinelState* state) override;
     bool rollback(SentinelState* state) override;
   };
@@ -264,6 +280,8 @@ namespace sentinel::notif
     const std::string get_message() const noexcept override { return "Propagation removed : " + lit.to_string(); }
 
     explicit propagation_removed(Tlit lit) : lit(lit) {}
+
+    std::string to_command() const override;
 
     bool apply(SentinelState* state) override;
     bool rollback(SentinelState* state) override;
@@ -294,6 +312,8 @@ namespace sentinel::notif
     const std::string get_message() const noexcept override { return "Unassignment : " + lit.to_string() + " unassigned"; }
 
     explicit unassignment(Tlit lit) : lit(lit), var(lit.var()) {}
+
+    std::string to_command() const override;
 
     bool apply(SentinelState* state) override;
     bool rollback(SentinelState* state) override;
@@ -330,6 +350,8 @@ namespace sentinel::notif
 
     explicit new_clause(Tclause cl, std::vector<Tlit> lits, bool external);
 
+    std::string to_command() const override;
+
     bool apply(SentinelState* state) override;
     bool rollback(SentinelState* state) override;
   };
@@ -362,6 +384,8 @@ namespace sentinel::notif
 
     explicit delete_clause(Tclause cl) : cl(cl) {}
 
+    std::string to_command() const override;
+
     bool apply(SentinelState* state) override;
     bool rollback(SentinelState* state) override;
   };
@@ -390,6 +414,8 @@ namespace sentinel::notif
     const std::string get_message() const noexcept override { return "Watch literal : " + lit.to_string() + " in clause " + cl.to_string(); }
 
     explicit watch(Tclause cl, Tlit lit) : cl(cl), lit(lit) {}
+
+    std::string to_command() const override;
 
     bool apply(SentinelState* state) override;
     bool rollback(SentinelState* state) override;
@@ -421,6 +447,8 @@ namespace sentinel::notif
     const std::string get_message() const noexcept override { return "Unwatch literal : " + lit.to_string() + " in clause " + cl.to_string(); }
 
     explicit unwatch(Tclause cl, Tlit lit) : cl(cl), lit(lit) {}
+
+    std::string to_command() const override;
 
     bool apply(SentinelState* state) override;
     bool rollback(SentinelState* state) override;
@@ -462,6 +490,8 @@ namespace sentinel::notif
 
     explicit block(Tclause cl, Tlit blocker, Tlit blocked_lit) : cl(cl), blocker(blocker), blocked_lit(blocked_lit) {}
 
+    std::string to_command() const override;
+
     bool apply(SentinelState* state) override;
     bool rollback(SentinelState* state) override;
   };
@@ -493,6 +523,8 @@ namespace sentinel::notif
 
     explicit remove_literal(Tclause cl, Tlit lit) : cl(cl), lit(lit) {}
 
+    std::string to_command() const override;
+
     bool apply(SentinelState* state) override;
     bool rollback(SentinelState* state) override;
   };
@@ -510,6 +542,8 @@ namespace sentinel::notif
     const std::string get_message() const noexcept override { return "Lock assumption: " + lit.to_string(); }
 
     explicit lock_assumption(Tlit lit) : lit(lit) {}
+
+    std::string to_command() const override;
 
     bool apply(SentinelState* state) override;
     bool rollback(SentinelState* state) override;
@@ -529,6 +563,8 @@ namespace sentinel::notif
 
     explicit unlock_assumption(Tlit lit) : lit(lit) {}
 
+    std::string to_command() const override;
+
     bool apply(SentinelState* state) override;
     bool rollback(SentinelState* state) override;
   };
@@ -543,6 +579,7 @@ namespace sentinel::notif
     ENotifType get_type() const noexcept override { return NTYPE; }
     const std::string get_message() const noexcept override { return "Message : " + m; }
     explicit message(std::string message, unsigned lvl = 0) : m(std::move(message)), notif_lvl(lvl) {}
+    std::string to_command() const override;
     bool apply(SentinelState* state) override { return true; }
     bool rollback(SentinelState* state) override { return true; }
    };

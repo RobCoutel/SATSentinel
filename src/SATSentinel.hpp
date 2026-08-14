@@ -18,6 +18,7 @@
 #include "Sentinel-notifications.hpp"
 #include "Sentinel-context.hpp"
 #include "Sentinel-commands.hpp"
+#include "Sentinel-serialization.hpp"
 
 #include <functional>
 #include <set>
@@ -99,6 +100,10 @@ namespace sentinel
     CommandParser navigation_commands;
 
     Tparser* external_parser = nullptr;
+
+    // Records every notification, as it is sent, to _options->save_file (when set). See
+    // Sentinel-serialization.hpp.
+    ExecutionLogger execution_log;
 
     SentinelContext context;
 

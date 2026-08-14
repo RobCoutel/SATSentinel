@@ -3,6 +3,8 @@ LIB_NAME = SATSentinel
 MAIN = main.cpp
 TARGET_LIB ?= $(LIB_NAME).a
 
+.DEFAULT_GOAL := all
+
 CC := g++
 
 # GUI opt-in. Default GUI=0 builds the classic CLI-only tool with zero new

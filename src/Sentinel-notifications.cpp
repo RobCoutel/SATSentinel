@@ -91,6 +91,8 @@ namespace sentinel
     assert(marker);
     if (marker->is_marked(lit.var()))
       return 0;
+    if (reason == CLAUSE_UNDEF)
+      return 2;
     return DEFAULT_LEVEL;
   }
 
