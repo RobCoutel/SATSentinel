@@ -148,6 +148,7 @@ namespace sentinel
                           float& value, float min_value, float max_value);
 
     void submit(const std::string& input);
+    void submit_nav(const std::string& input);
 
     static int command_text_edit_callback(ImGuiInputTextCallbackData* data);
 
@@ -161,6 +162,14 @@ namespace sentinel
 
     GLFWwindow* _window = nullptr;
     GuiDispatch _dispatch;
+    // Navigation commands are dispatched here whenever mode_label ==
+    // "NAVIGATION COMMANDS" (see update_context()/pump_until_command()), and
+    // then kept around so the navigation input box stays usable even while a
+    // different phase (e.g. "USER COMMANDS") owns _dispatch/_mode_label - the
+    // underlying lambda is stable across the whole run (it just closes over
+    // the SATSentinel this-pointer), so re-dispatching through the stale copy
+    // is safe.
+    GuiDispatch _nav_dispatch;
     bool _should_stop_prompting = false;
     bool _pumping = false;             // true for the whole body of the active pump_until_command() call
     bool _context_refreshed = false;   // set by update_context() during the current submit()
@@ -215,6 +224,7 @@ namespace sentinel
     bool _clauses_only_relevant = false;
 
     // command panel
+    char _nav_command_buf[256] = "";
     char _command_buf[256] = "";
     std::vector<std::string> _command_history;
     int _history_browse_pos = -1;

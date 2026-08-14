@@ -342,11 +342,40 @@ void SentinelGUI::submit(const std::string& input)
     _should_stop_prompting = true;
 }
 
+void SentinelGUI::submit_nav(const std::string& input)
+{
+  bool stop = false;
+  _context_refreshed = false;
+  bool success = _nav_dispatch ? _nav_dispatch(input, stop) : false;
+
+  _log.push_back({ "> " + input, success });
+  if (!success)
+    _log.push_back({ "  command failed or not recognized", false });
+
+  if (!input.empty() && (_command_history.empty() || _command_history.back() != input))
+    _command_history.push_back(input);
+  _history_browse_pos = -1;
+  _scroll_log_to_bottom = true;
+
+  // The navigation box stays live even while a different phase (e.g. "USER
+  // COMMANDS") owns the active pump loop, so a "stop" signal from it may only
+  // end that loop if navigation is actually what the loop is waiting on right
+  // now - otherwise a no-op "next" typed during a checkpoint's user-command
+  // wait would wrongly look like a successful external command and cut the
+  // wait short. Commands that genuinely need to interrupt another phase (e.g.
+  // "back", which re-enters get_navigation_commands()) already do so via
+  // update_context()/_context_refreshed, independent of this check.
+  if (stop && _mode_label == "NAVIGATION COMMANDS" && !_context_refreshed)
+    _should_stop_prompting = true;
+}
+
 void SentinelGUI::update_context(GuiDispatch dispatch, const std::string& status_header, const std::string& mode_label)
 {
   _dispatch = dispatch;
   _status_header = status_header;
   _mode_label = mode_label;
+  if (mode_label == "NAVIGATION COMMANDS")
+    _nav_dispatch = dispatch;
   _context_refreshed = true;
 }
 
@@ -368,6 +397,8 @@ void SentinelGUI::pump_until_command(GuiDispatch dispatch, const std::string& st
   _dispatch = dispatch;
   _status_header = status_header;
   _mode_label = mode_label;
+  if (mode_label == "NAVIGATION COMMANDS")
+    _nav_dispatch = dispatch;
   _should_stop_prompting = false;
   _pumping = true;
   _graph_highlighted_vars.clear();
@@ -1081,33 +1112,50 @@ void SentinelGUI::render_command_panel()
 {
   // Mirrors the terminal frontend's "NAVIGATION COMMANDS" / "USER COMMANDS"
   // banners, so it's clear which command path (built-in CommandParser vs.
-  // the host application's external_parser) the input field below is feeding.
+  // the host application's external_parser) each input field below feeds.
+  // Navigation is always live (see submit_nav()/_nav_dispatch); the user
+  // command box only lights up while a checkpoint is actively waiting on the
+  // external parser (_mode_label == "USER COMMANDS"), and goes back to
+  // grayed-out the moment a command succeeds there or the next checkpoint
+  // moves back into navigation.
+  ImGuiInputTextFlags flags = ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackHistory;
 
+  ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.3f, 1.0f), "NAVIGATION COMMANDS");
   if (ImGui::Button("back", ImVec2(80, 0)))
-    submit("back");
+    submit_nav("back");
   ImGui::SameLine();
   if (ImGui::Button("next", ImVec2(80, 0)))
-    submit("next");
+    submit_nav("next");
   ImGui::SameLine();
   if (ImGui::Button("Help"))
-    submit("help");
+    submit_nav("help");
+
+  ImGui::SetNextItemWidth(-1);
+  if (ImGui::InputTextWithHint("##nav_command_input", "Enter a navigation command...", _nav_command_buf, sizeof(_nav_command_buf), flags,
+        &SentinelGUI::command_text_edit_callback, this)) {
+    std::string input(_nav_command_buf);
+    submit_nav(input);
+    _nav_command_buf[0] = '\0';
+    ImGui::SetKeyboardFocusHere(-1);
+  }
 
   ImGui::Separator();
-  const char* hint = (_mode_label == "USER COMMANDS")
-    ? "Enter a user command (external_parser)..."
-    : "Enter a navigation command...";
-  ImGuiInputTextFlags flags = ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackHistory;
+
+  bool user_commands_live = (_mode_label == "USER COMMANDS");
+  ImGui::TextColored(user_commands_live ? ImVec4(1.0f, 0.85f, 0.3f, 1.0f) : ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled),
+    "USER COMMANDS%s", user_commands_live ? "" : " (waiting for checkpoint)");
+  ImGui::BeginDisabled(!user_commands_live);
   ImGui::SetNextItemWidth(-1);
-  if (ImGui::InputTextWithHint("##command_input", hint, _command_buf, sizeof(_command_buf), flags,
+  if (ImGui::InputTextWithHint("##user_command_input", "Enter a user command (external_parser)...", _command_buf, sizeof(_command_buf), flags,
         &SentinelGUI::command_text_edit_callback, this)) {
     std::string input(_command_buf);
     submit(input);
     _command_buf[0] = '\0';
     ImGui::SetKeyboardFocusHere(-1);
   }
+  ImGui::EndDisabled();
 
   ImGui::Separator();
-  ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.3f, 1.0f), "%s", _mode_label.c_str());
   // Notification messages (e.g. NapSAT's clause_to_string()/lit_to_string())
   // embed ANSI SGR color escapes, so this must go through render_ansi_text()
   // rather than a raw Text call or the escape bytes print as garbage.
