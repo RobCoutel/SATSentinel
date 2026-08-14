@@ -501,7 +501,16 @@ void SentinelGUI::pump_until_command(GuiDispatch dispatch, const std::string& st
     ImGui::SetNextWindowPos(ImVec2(left_w + splitter, command_h + splitter));
     ImGui::SetNextWindowSize(ImVec2(right_w, options_h));
     ImGui::Begin("Options", nullptr, panel_flags);
-    render_options_panel();
+    if (ImGui::RadioButton("Options", _bottom_right_view == BottomRightView::OPTIONS))
+      _bottom_right_view = BottomRightView::OPTIONS;
+    ImGui::SameLine();
+    if (ImGui::RadioButton("Detail", _bottom_right_view == BottomRightView::DETAIL))
+      _bottom_right_view = BottomRightView::DETAIL;
+    ImGui::Separator();
+    if (_bottom_right_view == BottomRightView::OPTIONS)
+      render_options_panel();
+    else
+      render_detail_panel();
     ImGui::End();
 
     // Draggable splitters live in the gaps between panels, on an invisible
@@ -838,20 +847,10 @@ void SentinelGUI::render_implication_graph_panel()
   }
   ImGui::EndChild();
 
-  // Same reasoning as the variables/clauses panels: OpenPopup()/BeginPopupModal()
-  // must run from the ID-stack context outside the child window's per-node PushID.
   if (open_var_detail) {
     _selected_var = (int)clicked_var.value;
-    ImGui::OpenPopup("Variable Detail##graph");
-  }
-
-  if (ImGui::BeginPopupModal("Variable Detail##graph", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-    if (_selected_var >= 0)
-      render_variable_detail(Tvar((unsigned)_selected_var));
-    ImGui::Separator();
-    if (ImGui::Button("Close") || ImGui::IsKeyPressed(ImGuiKey_Escape))
-      ImGui::CloseCurrentPopup();
-    ImGui::EndPopup();
+    _detail_kind = DetailKind::VARIABLE;
+    _bottom_right_view = BottomRightView::DETAIL;
   }
 }
 
@@ -879,8 +878,6 @@ void SentinelGUI::render_variables_panel()
     visible_vars.push_back(i);
   }
 
-  bool open_var_detail = false;
-
   ImGui::BeginChild("var_list", ImVec2(0, 0), true);
   ImGuiListClipper clipper;
   clipper.Begin((int)visible_vars.size());
@@ -900,29 +897,14 @@ void SentinelGUI::render_variables_panel()
       std::string row_text = label + " = " + _state->value(var).to_string() + " @ " + _state->level(var).to_string();
       if (ImGui::Selectable(row_text.c_str())) {
         _selected_var = (int)var.value;
-        open_var_detail = true;
+        _detail_kind = DetailKind::VARIABLE;
+        _bottom_right_view = BottomRightView::DETAIL;
       }
       ImGui::PopStyleColor();
       ImGui::PopID();
     }
   }
   ImGui::EndChild();
-
-  // OpenPopup() and BeginPopupModal() hash the popup ID against the *current*
-  // ID stack, so both must be called from the same ID-stack context (here:
-  // this function's top level, outside the child window / per-row PushID
-  // above) or the modal silently never matches the popup that was opened.
-  if (open_var_detail)
-    ImGui::OpenPopup("Variable Detail");
-
-  if (ImGui::BeginPopupModal("Variable Detail", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-    if (_selected_var >= 0)
-      render_variable_detail(Tvar((unsigned)_selected_var));
-    ImGui::Separator();
-    if (ImGui::Button("Close") || ImGui::IsKeyPressed(ImGuiKey_Escape))
-      ImGui::CloseCurrentPopup();
-    ImGui::EndPopup();
-  }
 }
 
 void SentinelGUI::render_variable_detail(Tvar var)
@@ -997,8 +979,6 @@ void SentinelGUI::render_clauses_panel()
     visible_clauses.push_back(i);
   }
 
-  bool open_clause_detail = false;
-
   ImGui::BeginChild("clause_list", ImVec2(0, 0), true);
   ImGuiListClipper clipper;
   clipper.Begin((int)visible_clauses.size());
@@ -1020,27 +1000,13 @@ void SentinelGUI::render_clauses_panel()
       render_ansi_text(_state->to_string(cl));
       if (clicked) {
         _selected_clause = (int)cl.value;
-        open_clause_detail = true;
+        _detail_kind = DetailKind::CLAUSE;
+        _bottom_right_view = BottomRightView::DETAIL;
       }
       ImGui::PopID();
     }
   }
   ImGui::EndChild();
-
-  // See the matching comment in render_variables_panel(): OpenPopup() must be
-  // called from the same ID-stack context as BeginPopupModal(), not from
-  // inside the per-row PushID/child window above.
-  if (open_clause_detail)
-    ImGui::OpenPopup("Clause Detail");
-
-  if (ImGui::BeginPopupModal("Clause Detail", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-    if (_selected_clause >= 0)
-      render_clause_detail(Tclause((unsigned)_selected_clause));
-    ImGui::Separator();
-    if (ImGui::Button("Close") || ImGui::IsKeyPressed(ImGuiKey_Escape))
-      ImGui::CloseCurrentPopup();
-    ImGui::EndPopup();
-  }
 }
 
 void SentinelGUI::render_clause_detail(Tclause cl)
@@ -1246,6 +1212,21 @@ void SentinelGUI::render_options_panel()
   }
   if (ImGui::IsItemHovered())
     ImGui::SetTooltip("Invariant checks are baked into the solver state once at\nconstruction time; toggling them live is not supported yet.");
+}
+
+void SentinelGUI::render_detail_panel()
+{
+  if (_detail_kind == DetailKind::VARIABLE) {
+    if (_selected_var < 0)
+      ImGui::TextDisabled("Click a variable (or right-click a graph node) to inspect it here.");
+    else
+      render_variable_detail(Tvar((unsigned)_selected_var));
+  } else {
+    if (_selected_clause < 0)
+      ImGui::TextDisabled("Click a clause to inspect it here.");
+    else
+      render_clause_detail(Tclause((unsigned)_selected_clause));
+  }
 }
 
 }

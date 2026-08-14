@@ -138,6 +138,7 @@ namespace sentinel
 
     void render_variable_detail(Tvar var);
     void render_clause_detail(Tclause cl);
+    void render_detail_panel();
 
     // Draws a draggable strip in the current (overlay) window that resizes an
     // adjacent pair of panels by adjusting *value in place. Vertical splitters
@@ -223,5 +224,15 @@ namespace sentinel
 
     // options panel
     int _display_level_input = -1; // -1 means "not yet synced to the live value"
+
+    // bottom-right panel: toggles between Options and the inspected
+    // variable/clause detail, mirroring the Trail/Implication Graph toggle above.
+    // Selecting a variable or clause switches this to DETAIL automatically;
+    // the radio buttons let the user flip back to Options without losing the
+    // selection (so it comes right back on the next click of a var/clause).
+    enum class BottomRightView { OPTIONS, DETAIL };
+    BottomRightView _bottom_right_view = BottomRightView::OPTIONS;
+    enum class DetailKind { VARIABLE, CLAUSE };
+    DetailKind _detail_kind = DetailKind::VARIABLE;
   };
 }
