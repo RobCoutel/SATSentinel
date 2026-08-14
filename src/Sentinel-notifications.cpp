@@ -110,8 +110,10 @@ namespace sentinel
       state->increment_level_counter(state->level(var));
     } else if (reason == CLAUSE_ROOT) {
       state->level(var) = LEVEL_ROOT;
+      state->increment_level_counter(LEVEL_ROOT);
     } else if (reason == CLAUSE_LAZY || reason == CLAUSE_ASSUMPTION) {
       state->level(var) = state->_level_counters.size() - 1;
+      state->increment_level_counter(state->level(var));
     } else {
       Tlevel reason_level = 0;
       for (const auto& lit : state->literals(reason)) {
