@@ -46,18 +46,30 @@ namespace
     return true;
   }
 
+  // Literal syntax accepted by the command parser: matches Tlit::to_string() (e.g. "~v0" is the
+  // negation of variable 0), with the "v" optional for convenience. A leading '-' is not used
+  // for polarity: since variable 0 is valid, "-0" would be indistinguishable from "0" under
+  // signed-integer parsing.
   bool parse_lit(const std::string& token, Tlit& out)
   {
-    int value;
+    if (token.empty()) {
+      return false;
+    }
+    bool positive = token[0] != '~';
+    std::string digits = positive ? token : token.substr(1);
+    if (!digits.empty() && (digits[0] == 'v' || digits[0] == 'V')) {
+      digits = digits.substr(1);
+    }
+    if (digits.empty() || digits.find_first_not_of("0123456789") != std::string::npos) {
+      return false;
+    }
+    unsigned int value;
     try {
-      value = std::stoi(token);
+      value = static_cast<unsigned int>(std::stoul(digits));
     } catch (std::exception const&) {
       return false;
     }
-    if (value == 0) {
-      return false;
-    }
-    out = Tlit(Tvar(abs(value)), value > 0);
+    out = Tlit(Tvar(value), positive ? 1 : 0);
     return true;
   }
 
@@ -207,16 +219,28 @@ void configure_command_parser(SATSentinel* sentinel, CommandParser& parser)
       return true;
     }));
 
-  parser.add_command(CommandIntegers(
+  parser.add_command(Command(
     "SHRINK CLAUSE",
     "Remove a literal from a clause",
-    [sentinel](const std::vector<int>& args) {
-      if (args.size() != 2) {
+    [sentinel](const std::string& args) {
+      std::vector<std::string> tokens = split_ws(args);
+      if (tokens.size() != 2) {
         std::cout << "Invalid arguments (exactly two arguments expected)" << std::endl;
         return false;
       }
-      Tclause clause(args[0]);
-      Tlit removed_lit(Tvar(abs(args[1])), args[1] > 0);
+      int cl_value;
+      try {
+        cl_value = std::stoi(tokens[0]);
+      } catch (std::exception const&) {
+        std::cout << "Invalid argument \"" << tokens[0] << "\" - clause id (integer) expected" << std::endl;
+        return false;
+      }
+      Tclause clause((unsigned)cl_value);
+      Tlit removed_lit;
+      if (!parse_lit(tokens[1], removed_lit)) {
+        std::cout << "Invalid argument \"" << tokens[1] << "\" - integer literal expected" << std::endl;
+        return false;
+      }
       if (!shrink_clause(sentinel, clause, removed_lit)) {
         std::cout << "Clause " << clause << " failed to be shrunk." << std::endl;
         return false;
@@ -250,56 +274,83 @@ void configure_command_parser(SATSentinel* sentinel, CommandParser& parser)
       return true;
     }));
 
-  parser.add_command(CommandInteger(
+  parser.add_command(Command(
     "UNASSIGN",
     "Unassign a literal",
-    [sentinel](int lit) {
-      Tlit tlit(Tvar(abs(lit)), lit > 0);
-      if (!unassign(sentinel, tlit)) {
-        std::cout << "Literal " << tlit << " failed to be unassigned." << std::endl;
+    [sentinel](const std::string& args) {
+      std::vector<std::string> tokens = split_ws(args);
+      Tlit lit;
+      if (tokens.size() != 1 || !parse_lit(tokens[0], lit)) {
+        std::cout << "Invalid argument \"" << args << "\" - integer literal expected" << std::endl;
+        return false;
+      }
+      if (!unassign(sentinel, lit)) {
+        std::cout << "Literal " << lit << " failed to be unassigned." << std::endl;
         return false;
       }
       return true;
     }));
 
-  parser.add_command(CommandInteger(
+  parser.add_command(Command(
     "PROPAGATE",
     "Push a propagated literal onto the propagation queue",
-    [sentinel](int lit) {
-      Tlit tlit(Tvar(abs(lit)), lit > 0);
-      if (!propagate(sentinel, tlit)) {
-        std::cout << "Literal " << tlit << " failed to be propagated." << std::endl;
+    [sentinel](const std::string& args) {
+      std::vector<std::string> tokens = split_ws(args);
+      Tlit lit;
+      if (tokens.size() != 1 || !parse_lit(tokens[0], lit)) {
+        std::cout << "Invalid argument \"" << args << "\" - integer literal expected" << std::endl;
+        return false;
+      }
+      if (!propagate(sentinel, lit)) {
+        std::cout << "Literal " << lit << " failed to be propagated." << std::endl;
         return false;
       }
       return true;
     }));
 
-  parser.add_command(CommandInteger(
+  parser.add_command(Command(
     "UNPROPAGATE",
     "Remove a propagated literal from the propagation queue",
-    [sentinel](int lit) {
-      Tlit tlit(Tvar(abs(lit)), lit > 0);
-      if (!unpropagate(sentinel, tlit)) {
-        std::cout << "Literal " << tlit << " failed to be unpropagated." << std::endl;
+    [sentinel](const std::string& args) {
+      std::vector<std::string> tokens = split_ws(args);
+      Tlit lit;
+      if (tokens.size() != 1 || !parse_lit(tokens[0], lit)) {
+        std::cout << "Invalid argument \"" << args << "\" - integer literal expected" << std::endl;
+        return false;
+      }
+      if (!unpropagate(sentinel, lit)) {
+        std::cout << "Literal " << lit << " failed to be unpropagated." << std::endl;
         return false;
       }
       return true;
     }));
 
-  parser.add_command(CommandIntegers(
+  parser.add_command(Command(
     "UPDATE LEVEL",
     "Update the decision level of a literal: <literal> <level>",
-    [sentinel](const std::vector<int>& args) {
-      if (args.size() != 2) {
+    [sentinel](const std::string& args) {
+      std::vector<std::string> tokens = split_ws(args);
+      if (tokens.size() != 2) {
         std::cout << "Invalid arguments (exactly two arguments expected)" << std::endl;
         return false;
       }
-      if (args[1] < 0) {
+      Tlit lit;
+      if (!parse_lit(tokens[0], lit)) {
+        std::cout << "Invalid argument \"" << tokens[0] << "\" - integer literal expected" << std::endl;
+        return false;
+      }
+      int level_value;
+      try {
+        level_value = std::stoi(tokens[1]);
+      } catch (std::exception const&) {
+        std::cout << "Invalid argument \"" << tokens[1] << "\" - integer expected" << std::endl;
+        return false;
+      }
+      if (level_value < 0) {
         std::cout << "Invalid level (positive integer expected)" << std::endl;
         return false;
       }
-      Tlit lit(Tvar(abs(args[0])), args[0] > 0);
-      if (!update_level(sentinel, lit, Tlevel((unsigned)args[1]))) {
+      if (!update_level(sentinel, lit, Tlevel((unsigned)level_value))) {
         std::cout << "Failed to update level of literal " << lit << std::endl;
         return false;
       }
@@ -332,16 +383,28 @@ void configure_command_parser(SATSentinel* sentinel, CommandParser& parser)
       return true;
     }));
 
-  parser.add_command(CommandIntegers(
+  parser.add_command(Command(
     "WATCH",
     "Add a clause to the watch list of a literal: <clause> <literal>",
-    [sentinel](const std::vector<int>& args) {
-      if (args.size() != 2) {
+    [sentinel](const std::string& args) {
+      std::vector<std::string> tokens = split_ws(args);
+      if (tokens.size() != 2) {
         std::cout << "Invalid arguments (exactly two arguments expected)" << std::endl;
         return false;
       }
-      Tclause clause(args[0]);
-      Tlit lit(Tvar(abs(args[1])), args[1] > 0);
+      int cl_value;
+      try {
+        cl_value = std::stoi(tokens[0]);
+      } catch (std::exception const&) {
+        std::cout << "Invalid argument \"" << tokens[0] << "\" - clause id (integer) expected" << std::endl;
+        return false;
+      }
+      Tclause clause((unsigned)cl_value);
+      Tlit lit;
+      if (!parse_lit(tokens[1], lit)) {
+        std::cout << "Invalid argument \"" << tokens[1] << "\" - integer literal expected" << std::endl;
+        return false;
+      }
       if (!watch(sentinel, clause, lit)) {
         std::cout << "Failed to watch literal " << lit << " in clause " << clause << std::endl;
         return false;
@@ -349,16 +412,28 @@ void configure_command_parser(SATSentinel* sentinel, CommandParser& parser)
       return true;
     }));
 
-  parser.add_command(CommandIntegers(
+  parser.add_command(Command(
     "UNWATCH",
     "Remove a clause from the watch list of a literal: <clause> <literal>",
-    [sentinel](const std::vector<int>& args) {
-      if (args.size() != 2) {
+    [sentinel](const std::string& args) {
+      std::vector<std::string> tokens = split_ws(args);
+      if (tokens.size() != 2) {
         std::cout << "Invalid arguments (exactly two arguments expected)" << std::endl;
         return false;
       }
-      Tclause clause(args[0]);
-      Tlit lit(Tvar(abs(args[1])), args[1] > 0);
+      int cl_value;
+      try {
+        cl_value = std::stoi(tokens[0]);
+      } catch (std::exception const&) {
+        std::cout << "Invalid argument \"" << tokens[0] << "\" - clause id (integer) expected" << std::endl;
+        return false;
+      }
+      Tclause clause((unsigned)cl_value);
+      Tlit lit;
+      if (!parse_lit(tokens[1], lit)) {
+        std::cout << "Invalid argument \"" << tokens[1] << "\" - integer literal expected" << std::endl;
+        return false;
+      }
       if (!unwatch(sentinel, clause, lit)) {
         std::cout << "Failed to unwatch literal " << lit << " in clause " << clause << std::endl;
         return false;
@@ -366,17 +441,33 @@ void configure_command_parser(SATSentinel* sentinel, CommandParser& parser)
       return true;
     }));
 
-  parser.add_command(CommandIntegers(
+  parser.add_command(Command(
     "BLOCK",
     "Record the blocking literal of a watched clause: <clause> <blocker> <watched-literal>",
-    [sentinel](const std::vector<int>& args) {
-      if (args.size() != 3) {
+    [sentinel](const std::string& args) {
+      std::vector<std::string> tokens = split_ws(args);
+      if (tokens.size() != 3) {
         std::cout << "Invalid arguments (exactly three arguments expected)" << std::endl;
         return false;
       }
-      Tclause clause(args[0]);
-      Tlit blocker(Tvar(abs(args[1])), args[1] > 0);
-      Tlit watched(Tvar(abs(args[2])), args[2] > 0);
+      int cl_value;
+      try {
+        cl_value = std::stoi(tokens[0]);
+      } catch (std::exception const&) {
+        std::cout << "Invalid argument \"" << tokens[0] << "\" - clause id (integer) expected" << std::endl;
+        return false;
+      }
+      Tclause clause((unsigned)cl_value);
+      Tlit blocker;
+      if (!parse_lit(tokens[1], blocker)) {
+        std::cout << "Invalid argument \"" << tokens[1] << "\" - integer literal expected" << std::endl;
+        return false;
+      }
+      Tlit watched;
+      if (!parse_lit(tokens[2], watched)) {
+        std::cout << "Invalid argument \"" << tokens[2] << "\" - integer literal expected" << std::endl;
+        return false;
+      }
       if (!block(sentinel, clause, blocker, watched)) {
         std::cout << "Failed to block literal " << blocker << " in clause " << clause << std::endl;
         return false;
@@ -384,25 +475,35 @@ void configure_command_parser(SATSentinel* sentinel, CommandParser& parser)
       return true;
     }));
 
-  parser.add_command(CommandInteger(
+  parser.add_command(Command(
     "LOCK",
     "Lock a literal as an assumption",
-    [sentinel](int lit) {
-      Tlit tlit(Tvar(abs(lit)), lit > 0);
-      if (!lock_assumption(sentinel, tlit)) {
-        std::cout << "Literal " << tlit << " failed to be locked." << std::endl;
+    [sentinel](const std::string& args) {
+      std::vector<std::string> tokens = split_ws(args);
+      Tlit lit;
+      if (tokens.size() != 1 || !parse_lit(tokens[0], lit)) {
+        std::cout << "Invalid argument \"" << args << "\" - integer literal expected" << std::endl;
+        return false;
+      }
+      if (!lock_assumption(sentinel, lit)) {
+        std::cout << "Literal " << lit << " failed to be locked." << std::endl;
         return false;
       }
       return true;
     }));
 
-  parser.add_command(CommandInteger(
+  parser.add_command(Command(
     "UNLOCK",
     "Unlock a literal as an assumption",
-    [sentinel](int lit) {
-      Tlit tlit(Tvar(abs(lit)), lit > 0);
-      if (!unlock_assumption(sentinel, tlit)) {
-        std::cout << "Literal " << tlit << " failed to be unlocked." << std::endl;
+    [sentinel](const std::string& args) {
+      std::vector<std::string> tokens = split_ws(args);
+      Tlit lit;
+      if (tokens.size() != 1 || !parse_lit(tokens[0], lit)) {
+        std::cout << "Invalid argument \"" << args << "\" - integer literal expected" << std::endl;
+        return false;
+      }
+      if (!unlock_assumption(sentinel, lit)) {
+        std::cout << "Literal " << lit << " failed to be unlocked." << std::endl;
         return false;
       }
       return true;

@@ -46,7 +46,7 @@ namespace sentinel
 
   /**
    * @brief Type to denote a variable.
-   * @details The variable 0 is not used. The first variable is 1.
+   * @details The first variable is 0.
    */
   typedef struct Tvar{
     unsigned int value;
@@ -65,7 +65,10 @@ namespace sentinel
   /**
    * @brief Type to denote a propositional literal. The first bit is the polarity of the literal, the other bits are the variable.
    * @details The polarity is 0 for negative literals and 1 for positive literals.
-   * @details The literals 0 and 1 are not used. The first literal is 2 for variable 1 and polarity 0.
+   * @details The first literal is 0, for variable 0 and negative polarity. In the command
+   * parser/serializer, a literal is its variable id, prefixed with '~' for the negative
+   * polarity (e.g. "0" is the positive literal of variable 0, "~0" is its negation); a plain
+   * '-' sign is not used, since "-0" cannot be told apart from "0".
    */
   typedef struct Tlit {
     unsigned int value;

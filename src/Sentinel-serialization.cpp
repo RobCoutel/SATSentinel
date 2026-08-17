@@ -20,11 +20,12 @@ namespace sentinel
 {
   namespace
   {
-    // Signed-integer literal syntax accepted by the command parser (positive iff pol() == 1),
-    // matching the convention used throughout main.cpp (e.g. `Tlit(Tvar(abs(x)), x > 0)`).
+    // Literal syntax accepted by the command parser: Tlit::to_string() (e.g. "~v0"). A plain
+    // sign (e.g. "-0") is not used, since it can't distinguish the negative literal of variable
+    // 0 from the positive one.
     std::string lit_to_command(Tlit lit)
     {
-      return (lit.pol() ? "" : "-") + std::to_string(lit.var().value);
+      return lit.to_string();
     }
 
     // Reason/clause-id token accepted by the command parser: a keyword for the special reasons,
