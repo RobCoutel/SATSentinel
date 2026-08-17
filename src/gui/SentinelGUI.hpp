@@ -139,6 +139,7 @@ namespace sentinel
     void render_variable_detail(Tvar var);
     void render_clause_detail(Tclause cl);
     void render_detail_panel();
+    void render_backtrace_panel();
 
     // Draws a draggable strip in the current (overlay) window that resizes an
     // adjacent pair of panels by adjusting *value in place. Vertical splitters
@@ -235,14 +236,26 @@ namespace sentinel
     // options panel
     int _display_level_input = -1; // -1 means "not yet synced to the live value"
 
-    // bottom-right panel: toggles between Options and the inspected
-    // variable/clause detail, mirroring the Trail/Implication Graph toggle above.
-    // Selecting a variable or clause switches this to DETAIL automatically;
-    // the radio buttons let the user flip back to Options without losing the
-    // selection (so it comes right back on the next click of a var/clause).
-    enum class BottomRightView { OPTIONS, DETAIL };
+    // bottom-right panel: toggles between Options, the inspected variable/clause
+    // detail, and the live stack trace, mirroring the Trail/Implication Graph
+    // toggle above. Selecting a variable or clause switches this to DETAIL
+    // automatically; the radio buttons let the user flip back without losing
+    // the selection (so it comes right back on the next click of a var/clause).
+    enum class BottomRightView { OPTIONS, DETAIL, TRACE };
     BottomRightView _bottom_right_view = BottomRightView::OPTIONS;
     enum class DetailKind { VARIABLE, CLAUSE };
     DetailKind _detail_kind = DetailKind::VARIABLE;
+
+    // trace panel: hides everything but the resolved "at file:line" on each frame (see
+    // condense_backtrace()); on by default since the module/mangled-signature/address prefix
+    // is rarely what a user is after once file:line is available.
+    bool _backtrace_condensed = true;
+
+    // capture_backtrace() is expensive in a debug build (one addr2line subprocess per stack
+    // frame), so it must not run every render frame while the Trace view is open. The native
+    // call stack is invariant for the whole duration of one pause, so it's captured once and
+    // cached here; pump_until_command() invalidates the cache at the start of each new pause.
+    std::string _cached_backtrace;
+    bool _backtrace_cache_valid = false;
   };
 }

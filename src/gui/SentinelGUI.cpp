@@ -402,6 +402,11 @@ void SentinelGUI::pump_until_command(GuiDispatch dispatch, const std::string& st
   _should_stop_prompting = false;
   _pumping = true;
   _graph_highlighted_vars.clear();
+  // The native call stack only changes across a fresh (non-reentrant) pump_until_command()
+  // call - "back"/"next" navigation within one call just replays SentinelState, it never
+  // unwinds/re-enters notify(). So the cache built by render_backtrace_panel() below is only
+  // ever stale here, at the start of a new pause.
+  _backtrace_cache_valid = false;
 
   while (!_should_stop_prompting && !glfwWindowShouldClose(_window)) {
     glfwPollEvents();
@@ -537,11 +542,16 @@ void SentinelGUI::pump_until_command(GuiDispatch dispatch, const std::string& st
     ImGui::SameLine();
     if (ImGui::RadioButton("Detail", _bottom_right_view == BottomRightView::DETAIL))
       _bottom_right_view = BottomRightView::DETAIL;
+    ImGui::SameLine();
+    if (ImGui::RadioButton("Trace", _bottom_right_view == BottomRightView::TRACE))
+      _bottom_right_view = BottomRightView::TRACE;
     ImGui::Separator();
     if (_bottom_right_view == BottomRightView::OPTIONS)
       render_options_panel();
-    else
+    else if (_bottom_right_view == BottomRightView::DETAIL)
       render_detail_panel();
+    else
+      render_backtrace_panel();
     ImGui::End();
 
     // Draggable splitters live in the gaps between panels, on an invisible
@@ -1275,6 +1285,42 @@ void SentinelGUI::render_detail_panel()
     else
       render_clause_detail(Tclause((unsigned)_selected_clause));
   }
+}
+
+void SentinelGUI::render_backtrace_panel()
+{
+  // Same reasoning as the variable/clause "Custom details" section above: the stack only
+  // reflects the live notification while the sentinel sits on top of the notification stack
+  // (see SATSentinel::print_backtrace()'s doc comment for why "back" invalidates it).
+  if (!_is_real_time()) {
+    ImGui::TextColored(COLOR_RED, "Not available while navigating history: the stack trace only "
+                                   "reflects the live (synchronized) notification. Use \"next\" "
+                                   "to return to it first.");
+    return;
+  }
+
+  if (!_backtrace_cache_valid) {
+    // skip_frames=1: also hide this function's own frame, so the trace starts at our caller.
+    _cached_backtrace = capture_backtrace(64, 1);
+    _backtrace_cache_valid = true;
+  }
+  if (_cached_backtrace.empty()) {
+    ImGui::TextDisabled("Failed to resolve the stack trace.");
+    return;
+  }
+  std::string trace = _cached_backtrace;
+
+  ImGui::Checkbox("condensed", &_backtrace_condensed);
+  if (ImGui::IsItemHovered())
+    ImGui::SetTooltip("Show only the resolved \"at file:line\" per frame, hiding the module/"
+                       "function/address prefix (only available in a debug build - see "
+                       "capture_backtrace()'s doc comment).");
+  if (_backtrace_condensed)
+    trace = condense_backtrace(trace);
+
+  ImGui::BeginChild("backtrace_scroll", ImVec2(0, 0), true, ImGuiWindowFlags_HorizontalScrollbar);
+  ImGui::TextUnformatted(trace.c_str());
+  ImGui::EndChild();
 }
 
 }

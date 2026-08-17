@@ -147,6 +147,13 @@ namespace sentinel
     void print_variables() const;
     void print_trail() const;
 
+    // Prints the C++ stack trace of the host process at the current notification. Only
+    // meaningful when is_real_time(): the sentinel is then still blocked inside the notify()
+    // call the solver made to report the live notification, so that call chain is on the
+    // stack. Once the user has navigated into history with "back", the displayed notification
+    // no longer corresponds to any frame on the (unchanged) stack, so the trace is refused.
+    void print_backtrace() const;
+
     void register_commands();
 
   };

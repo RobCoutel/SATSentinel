@@ -47,7 +47,9 @@ ifeq ($(GUI),1)
   INC_DIRS += $(IMGUI_DIR) $(IMGUI_DIR)/backends
 endif
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
-LINK_FLAGS :=
+# -rdynamic exports all symbols to the dynamic symbol table so that the "backtrace" navigation
+# command (Sentinel-commands.cpp) can resolve function names instead of bare addresses.
+LINK_FLAGS := -rdynamic
 TEST_LINK_FLAGS := -lCatch2Main -lCatch2
 ifeq ($(GUI),1)
   LINK_FLAGS += -lglfw -lGL -ldl -lpthread

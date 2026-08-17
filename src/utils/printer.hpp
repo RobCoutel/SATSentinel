@@ -81,6 +81,33 @@ std::string pretty_time(std::chrono::microseconds time);
  */
 std::string justify_string(const std::string& str, unsigned width, char fill = ' ', const std::string& prefix = "");
 
+/**
+ * @brief Captures the C++ call stack of the calling process (Linux/glibc <execinfo.h>).
+ * @param max_frames Maximum number of stack frames to capture.
+ * @param skip_frames Number of innermost frames to omit, in addition to this function's own
+ * frame (which is always omitted): pass 1 (the default) to start the trace at your direct
+ * caller, or more to also hide wrapper functions between you and the frame of interest.
+ * @return A newline-terminated, "#N <module>(<demangled-function>+0xOFFSET) [0xADDRESS]"-per-line
+ * string of the call stack, or an empty string if the stack could not be resolved. Function
+ * names are demangled (via __cxa_demangle) whenever a symbol is found. In debug builds (NDEBUG
+ * undefined, e.g. `make BUILD_MODE=debug`) each resolvable frame also gets " at file:line",
+ * resolved by shelling out to the external `addr2line` tool against that DWARF info - a release
+ * build has none, so the suffix is silently omitted there. Link with -rdynamic for symbols to
+ * resolve at all (otherwise most frames show only module+address).
+ */
+std::string capture_backtrace(unsigned max_frames = 64, unsigned skip_frames = 1);
+
+/**
+ * @brief Condenses a capture_backtrace() trace down to just the resolved source locations.
+ * @details On a line that got a resolved " at <file>:<line>" suffix, drops everything before
+ * "at" (frame index, module, mangled/demangled function signature, raw address alike), keeping
+ * only "at <file>:<line>". A line with no such suffix (no debug info available for that frame -
+ * e.g. a release build, or an address libc/the loader didn't expose) is left untouched, since
+ * there's nothing more useful to fall back on.
+ * @param trace A string as returned by capture_backtrace().
+ */
+std::string condense_backtrace(const std::string& trace);
+
 const std::string ERROR_HEAD = "\033[1;31mERROR: \033[0m";
 const std::string WARNING_HEAD = "\033[0;33mWARNING: \033[0m";
 const std::string INFO_HEAD = "\033[34mINFO: \033[0m";

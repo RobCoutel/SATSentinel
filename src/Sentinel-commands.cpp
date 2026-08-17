@@ -26,14 +26,35 @@
 #include <fstream>
 #include <string>
 
-#include <execinfo.h>
-#include <unistd.h>
-
 namespace sentinel
 {
 bool SATSentinel::is_real_time() const
 {
   return current_notification_index == notifications.size();
+}
+
+void SATSentinel::print_backtrace() const
+{
+  // The stack only reflects the live notification while the sentinel sits on top of the
+  // notification stack: "back" rewinds the *replayed state*, not the process call stack, so a
+  // trace taken while browsing history would silently point at the wrong event.
+  if (!is_real_time()) {
+    std::cout << WARNING_HEAD << "Cannot print stack trace: the sentinel is browsing history "
+                  "(not synchronized with the solver). Use \"next\" to return to the live "
+                  "notification first." << std::endl;
+    return;
+  }
+
+  // skip_frames=1: also hide this function's own frame, so the trace starts at our caller.
+  std::string trace = capture_backtrace(64, 1);
+  if (trace.empty()) {
+    std::cout << WARNING_HEAD << "Failed to resolve the stack trace." << std::endl;
+    return;
+  }
+
+  std::cout << "Stack trace at notification " << current_notification_index
+            << " (" << last_notification_message() << "):" << std::endl;
+  std::cout << trace;
 }
 
 void SATSentinel::set_command_parser(Tparser* parser)
@@ -160,6 +181,16 @@ void sentinel::SATSentinel::register_commands() {
       return true;
     }, false));
   navigation_commands.add_alias("print", "p");
+
+  navigation_commands.add_command(Command(
+    "backtrace",
+    "Print the C++ stack trace of the solver at the current notification. Only available while "
+    "synchronized with the solver (i.e. not after \"back\" has moved away from the live notification).",
+    [this](const std::string& args) {
+      print_backtrace();
+      return true;
+    }, false));
+  navigation_commands.add_alias("backtrace", "bt");
 
   navigation_commands.add_command(CommandInteger(
     "set level",
