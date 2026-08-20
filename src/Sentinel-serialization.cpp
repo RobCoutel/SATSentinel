@@ -16,6 +16,8 @@
 #include "Sentinel-notifications.hpp"
 #include "Sentinel-types.hpp"
 
+#include <unordered_map>
+
 namespace sentinel
 {
   namespace
@@ -26,6 +28,25 @@ namespace sentinel
     std::string lit_to_command(Tlit lit)
     {
       return lit.to_string();
+    }
+
+    // Number of ExecutionLogger instances that have ever opened each filename, keyed by the
+    // plain (option-provided) filename. Monotonic for the lifetime of the process (never
+    // decremented on destruction): once a filename has been claimed by one instance, every
+    // later instance that opens it — even after the first one is destroyed — gets its own
+    // postfixed variant, so it never truncates a log an earlier, now-gone instance left behind.
+    std::unordered_map<std::string, unsigned>& writer_counts()
+    {
+      static std::unordered_map<std::string, unsigned> counts;
+      return counts;
+    }
+
+    std::string postfix_filename(const std::string& filename, unsigned instance_id)
+    {
+      size_t dot = filename.find_last_of('.');
+      std::string base = dot == std::string::npos ? filename : filename.substr(0, dot);
+      std::string ext = dot == std::string::npos ? "" : filename.substr(dot);
+      return base + "_" + std::to_string(instance_id) + ext;
     }
 
     // Reason/clause-id token accepted by the command parser: a keyword for the special reasons,
@@ -43,7 +64,12 @@ namespace sentinel
 
   bool ExecutionLogger::open(const std::string& filename)
   {
-    _stream.open(filename, std::ios::out | std::ios::trunc);
+    unsigned& count = writer_counts()[filename];
+    unsigned instance_id = count;
+    count++;
+
+    std::string actual_filename = instance_id == 0 ? filename : postfix_filename(filename, instance_id);
+    _stream.open(actual_filename, std::ios::out | std::ios::trunc);
     return _stream.is_open();
   }
 

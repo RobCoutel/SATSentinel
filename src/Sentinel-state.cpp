@@ -79,6 +79,17 @@ bool SentinelState::clause_satisfied(Tclause cl) const
   return false;
 }
 
+bool SentinelState::implying(Tclause cl) const
+{
+  const clause& c = _clauses[cl];
+  for (Tlit lit : c.literals) {
+    if (reason(lit) == cl) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool SentinelState::decrement_level_counter(Tlevel level)
 {
   assert(level.value < _level_counters.size());

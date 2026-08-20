@@ -995,10 +995,15 @@ void SentinelGUI::render_clauses_panel()
   std::string clause_filter(_clause_filter);
   ImGui::InputTextWithHint("##clause_var_filter", "filter (variable id)", _clause_var_filter, sizeof(_clause_var_filter));
   std::string filter(_clause_var_filter);
-  ImGui::Checkbox("Show only unit/conflicting/marked clauses", &_clauses_only_relevant);
+  ImGui::Checkbox("Conflicting", &_clauses_show_conflicting);
+  ImGui::SameLine();
+  ImGui::Checkbox("Implying", &_clauses_show_implying);
+  ImGui::SameLine();
+  ImGui::Checkbox("Unit (not yet propagating)", &_clauses_show_unit);
 
   // Same constraint as the variables panel: pre-filter into a plain index
   // list so every index the clipper walks actually renders a row.
+  bool category_filter_active = _clauses_show_conflicting || _clauses_show_implying || _clauses_show_unit;
   std::vector<unsigned> visible_clauses;
   size_t n_clauses = _state->clauses_size();
   for (unsigned i = 0; i < n_clauses; i++) {
@@ -1008,8 +1013,16 @@ void SentinelGUI::render_clauses_panel()
     if (!_state->active(cl))
       continue;
     bool marked = _markers->is_marked(cl);
-    if (_clauses_only_relevant && !marked && !_state->unit(cl) && !_state->conflicting(cl))
-      continue;
+    if (category_filter_active && !marked) {
+      // "Unit" here means unit but not (yet) the reason for any implication, i.e. not
+      // detected as propagating: a clause that becomes unit and immediately implies stays
+      // classified as "Implying" rather than "Unit" from that point on.
+      bool matches_conflicting = _clauses_show_conflicting && _state->conflicting(cl);
+      bool matches_implying = _clauses_show_implying && _state->implying(cl);
+      bool matches_unit = _clauses_show_unit && _state->unit(cl) && !_state->implying(cl);
+      if (!matches_conflicting && !matches_implying && !matches_unit)
+        continue;
+    }
     if (!filter.empty()) {
       bool found = false;
       for (Tlit lit : _state->literals(cl))
@@ -1062,9 +1075,10 @@ void SentinelGUI::render_clause_detail(Tclause cl)
   ImGui::Text("Learnt: %s", _state->clause_learnt(cl) ? "yes" : "no");
   ImGui::Text("External: %s", _state->clause_external(cl) ? "yes" : "no");
   ImGui::Text("Marked: %s", _markers->is_marked(cl) ? "yes" : "no");
-  ImGui::Text("Unit: %s   Conflicting: %s   Satisfied: %s",
+  ImGui::Text("Unit: %s   Conflicting: %s   Implying: %s   Satisfied: %s",
     _state->unit(cl) ? "yes" : "no",
     _state->conflicting(cl) ? "yes" : "no",
+    _state->implying(cl) ? "yes" : "no",
     _state->clause_satisfied(cl) ? "yes" : "no");
 
   const std::vector<Tlit>& lits = _state->literals(cl);

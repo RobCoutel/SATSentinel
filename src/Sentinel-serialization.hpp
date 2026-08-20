@@ -35,7 +35,12 @@ namespace sentinel
     ~ExecutionLogger() = default;
 
     /**
-     * @brief Opens (truncating) the given file for recording.
+     * @brief Opens (truncating) the given file for recording. If another ExecutionLogger has
+     * ever opened the same filename before — even if that instance has since been destroyed
+     * (e.g. several observers built at once with the same options, or one after another over
+     * the same run) — this instance is assigned an instance number and writes to a postfixed
+     * variant of the filename instead, so it never clobbers a log left behind by an earlier
+     * instance. The plain filename is used as-is only for the first instance ever to claim it.
      * @return true on success, false if the file could not be opened.
      */
     bool open(const std::string& filename);

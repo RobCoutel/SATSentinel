@@ -222,7 +222,11 @@ namespace sentinel
     char _clause_filter[64] = "";
     char _clause_var_filter[64] = "";
     int _selected_clause = -1;
-    bool _clauses_only_relevant = false;
+    // Independent (non-exclusive) filters for the clause list: when any is ticked, only
+    // clauses matching the union of ticked categories (plus marked clauses) are shown.
+    bool _clauses_show_conflicting = false;
+    bool _clauses_show_implying = false;
+    bool _clauses_show_unit = false;
 
     // command panel
     char _nav_command_buf[256] = "";

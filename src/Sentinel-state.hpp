@@ -107,6 +107,9 @@ public:
   bool unit(Tclause cl) const;
   bool conflicting(Tclause cl) const;
   bool clause_satisfied(Tclause cl) const;
+  // true if cl is currently the reason (antecedent) for some variable it mentions, i.e. it has
+  // already been used to imply an assignment (as opposed to merely being unit right now).
+  bool implying(Tclause cl) const;
 
   inline       std::vector<Tlit>& literals(Tclause cl)       { return _clauses[cl.value].literals; }
   inline const std::vector<Tlit>& literals(Tclause cl) const { return _clauses[cl.value].literals; }
