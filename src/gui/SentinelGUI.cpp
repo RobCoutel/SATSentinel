@@ -639,15 +639,47 @@ void SentinelGUI::render_trail_panel()
   }
 
   // Cell width: sign (1) + floor(log10(max_var))+1 digits + locked '*' (1).
+  // This is pure text width - do NOT fold CellPadding in here. The width
+  // passed to TableSetupColumn is the column's *content* width; the table
+  // adds CellPadding on both sides of it automatically. Baking padding into
+  // col_width would double-count it (padding applied by us, then padding
+  // applied again by the table), silently inflating every column's true
+  // on-screen footprint beyond what the estimate below assumes.
   size_t n_vars = _state->variables_size();
   int n_digits = (n_vars <= 2) ? 1 : (int)std::floor(std::log10((double)(n_vars - 1))) + 1;
   std::string sample((size_t)(n_digits + 3), '0');
-  float col_width = ImGui::CalcTextSize(sample.c_str()).x + ImGui::GetStyle().CellPadding.x * 2.0f;
+  float col_width = ImGui::CalcTextSize(sample.c_str()).x;
 
-  float avail_w = std::max(ImGui::GetContentRegionAvail().x - 60.0f, col_width);
-  int visible_cols = std::max(2, (int)(avail_w / col_width));
+  // Fit as many columns as possible into the available width. Each data
+  // column's true footprint is col_width plus the table's own CellPadding on
+  // both sides plus the 1px inner border ImGuiTableFlags_Borders draws before
+  // it (see ImGui's TableUpdateLayout: CellSpacingX1 == 1px border,
+  // CellPaddingX == style.CellPadding.x added on each side of WidthGiven).
+  // The "lvl" column (fixed content width 40px) gets the same padding/border
+  // treatment. Getting this right matters: if the estimate is too high, the
+  // table doesn't overflow - Dear ImGui instead silently shrinks the trailing
+  // columns down towards their minimum width to keep everything visible,
+  // which is the "squeezed last literals" look. Underestimating by a column
+  // just wastes a little space, so round down.
+  const float lvl_col_width = 40.0f;
+  const float border_size = 1.0f;
+  float cell_padding = ImGui::GetStyle().CellPadding.x;
+  float avail_w = ImGui::GetContentRegionAvail().x;
+  float fixed_overhead = lvl_col_width + 2.0f * cell_padding + 2.0f * border_size;
+  float per_col_footprint = col_width + 2.0f * cell_padding + border_size;
+  int visible_cols = std::max(2, (int)((avail_w - fixed_overhead) / per_col_footprint));
 
   int max_offset = (int)trail_size > visible_cols ? (int)trail_size - visible_cols : 0;
+
+  // Default to showing the end of the trail: whenever the trail's length
+  // changes (a literal was pushed or popped), snap the view to the end
+  // rather than leaving it wherever it happened to be. Manual scrolling in
+  // between such changes is left untouched.
+  if (trail_size != _trail_last_size) {
+    _trail_offset = max_offset;
+    _trail_last_size = trail_size;
+  }
+
   if (max_offset > 0) {
     ImGui::SetNextItemWidth(-1);
     ImGui::SliderInt("##trail_slider", &_trail_offset, 0, max_offset, "trail offset: %d");
@@ -661,11 +693,12 @@ void SentinelGUI::render_trail_panel()
 
   ImGui::Text("Trail size: %zu, decision level: %d", trail_size, top_level);
 
-  // ScrollX prevents column squishing when the computed width is slightly off;
-  // the table manages its own scroll region so no child window is needed.
+  // No ScrollX here: visible_cols is sized to always fit avail_w (see above),
+  // so the table never needs its own horizontal scrollbar - the offset
+  // slider above is the only way to scroll the trail.
   float table_h = ImGui::GetContentRegionAvail().y;
   const ImGuiTableFlags table_flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg
-      | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_ScrollX;
+      | ImGuiTableFlags_SizingFixedFit;
   if (ImGui::BeginTable("trail_table", visible_cols + 1, table_flags, ImVec2(0, table_h))) {
     ImGui::TableSetupColumn("lvl", ImGuiTableColumnFlags_WidthFixed, 40.0f);
     for (int c = 0; c < visible_cols; c++)

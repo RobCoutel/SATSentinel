@@ -205,6 +205,9 @@ namespace sentinel
     enum class TrailView { TRAIL, IMPLICATION_GRAPH };
     TrailView _trail_view = TrailView::TRAIL;
     int _trail_offset = 0;
+    // Trail size as of the last render, used to detect growth/shrinkage so the
+    // view can snap back to the end of the trail (see render_trail_panel()).
+    size_t _trail_last_size = (size_t)-1;
 
     // Vars whose implication-graph node color has been cycled by a left click
     // (red -> orange -> blue -> back to normal). Value is the cycle step
