@@ -205,32 +205,32 @@ std::string SentinelState::to_string(Tclause cl) const
   std::string undefined_lits = "";
   std::string falsified_lits = "";
 
-  Tlit c1 = c.watches.size() > 0 ? c.watches[0].first : Tlit(0);
-  Tlit c2 = c.watches.size() > 1 ? c.watches[1].first : Tlit(0);
-  Tlit b1 = c.watches.size() > 0 ? c.watches[0].second : Tlit(0);
-  Tlit b2 = c.watches.size() > 1 ? c.watches[1].second : Tlit(0);
+  Tlit c1 = c.watches.size() > 0 ? c.watches[0].first : LIT_UNDEF;
+  Tlit c2 = c.watches.size() > 1 ? c.watches[1].first : LIT_UNDEF;
+  Tlit b1 = c.watches.size() > 0 ? c.watches[0].second : LIT_UNDEF;
+  Tlit b2 = c.watches.size() > 1 ? c.watches[1].second : LIT_UNDEF;
 
   for (unsigned i = 0; i < c.literals.size() - c.n_deleted_literals; i++) {
     Tlit lit = c.literals[i];
     if (lit_true(lit)) {
       satisfied_lits += to_string(lit);
-      if (lit == c1 && b1.value != 0)
+      if (lit == c1 && b1 != LIT_UNDEF)
         satisfied_lits += "(" + to_string(b1) + ")";
-      else if (lit == c2 && b2.value != 0)
+      else if (lit == c2 && b2 != LIT_UNDEF)
         satisfied_lits += "(" + to_string(b2) + ")";
       satisfied_lits += " ";
     } else if (lit_undef(lit)) {
       undefined_lits += to_string(lit);
-      if (lit == c1 && b1.value != 0)
+      if (lit == c1 && b1 != LIT_UNDEF)
         undefined_lits += "(" + to_string(b1) + ")";
-      else if (lit == c2 && b2.value != 0)
+      else if (lit == c2 && b2 != LIT_UNDEF)
         undefined_lits += "(" + to_string(b2) + ")";
       undefined_lits += " ";
     } else {
       falsified_lits += to_string(lit);
-      if (lit == c1 && b1.value != 0)
+      if (lit == c1 && b1 != LIT_UNDEF)
         falsified_lits += "(" + to_string(b1) + ")";
-      else if (lit == c2 && b2.value != 0)
+      else if (lit == c2 && b2 != LIT_UNDEF)
         falsified_lits += "(" + to_string(b2) + ")";
       falsified_lits += " ";
     }
