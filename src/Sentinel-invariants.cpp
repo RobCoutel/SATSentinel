@@ -317,4 +317,16 @@ bool SentinelState::check_assignment_coherence(std::string& err_msg) const
   }
   return success;
 }
+
+bool SentinelState::check_repetition(std::string &err_msg) const
+{
+  const string error_header = ERROR_HEAD + "Invariant violation (repetition): ";
+  vector<Tlit> sorted_trail(_trail.begin(), _trail.end());
+  sort(sorted_trail.begin(), sorted_trail.end());
+  bool success = _seen_states.insert(std::move(sorted_trail)).second;
+  if (!success) {
+    err_msg += error_header + "the current assignment has already been observed earlier in this execution.\n";
+  }
+  return success;
+}
 }

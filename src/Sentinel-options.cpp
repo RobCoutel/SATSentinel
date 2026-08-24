@@ -65,6 +65,9 @@ namespace sentinel
                "Check that the trail is a topological sort of the implication graph.");
     p.add_bool("--check-assignment-coherence", t.check_assignment_coherence,
                "Check that the reasons of implied literals are correct.");
+    p.add_bool("--check-repetition", t.check_repetition,
+               "Check that the current assignment has not already occurred earlier in this "
+               "execution (state repetition detection).");
     p.add_bool("--check-weak-watched-literals", t.check_weak_watched_literals,
                "Check the weak watched-literal-with-blocker invariant.");
     p.add_bool("--check-strong-watched-literals", t.check_strong_watched_literals,

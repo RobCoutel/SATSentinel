@@ -57,6 +57,16 @@ namespace
     return COLOR_RED;
   }
 
+  // Color for a literal per its own truth value (not the variable's): green
+  // if satisfied, red if falsified, orange if the variable is still undefined.
+  ImVec4 color_for_lit_truth(const SentinelState* state, Tlit lit)
+  {
+    Tval v = state->value(lit);
+    if (lit.satisfied(v)) return COLOR_GREEN;
+    if (lit.falsified(v)) return COLOR_RED;
+    return COLOR_ORANGE;
+  }
+
   std::string label_for_lit(const SentinelState* state, Tlit lit)
   {
     std::string s = state->alias(lit);
@@ -67,10 +77,9 @@ namespace
     return s;
   }
 
-  // Draws a single literal, colored per its truth value, underlined if propagated.
-  void draw_lit(const SentinelState* state, Tlit lit)
+  // Draws a single literal in the given color, underlined if propagated.
+  void draw_lit_impl(const SentinelState* state, Tlit lit, ImVec4 col)
   {
-    ImVec4 col = color_for_lit(state, lit);
     std::string label = label_for_lit(state, lit);
     ImGui::PushStyleColor(ImGuiCol_Text, col);
     ImGui::TextUnformatted(label.c_str());
@@ -80,6 +89,21 @@ namespace
       ImVec2 mx = ImGui::GetItemRectMax();
       ImGui::GetWindowDrawList()->AddLine(ImVec2(mn.x, mx.y), ImVec2(mx.x, mx.y), ImGui::GetColorU32(col), 1.5f);
     }
+  }
+
+  // Draws a single literal, colored per its trail status (used by the
+  // trail/implication-graph views): green once it has been propagated, blue
+  // while it's still waiting to be propagated.
+  void draw_lit(const SentinelState* state, Tlit lit)
+  {
+    draw_lit_impl(state, lit, color_for_lit(state, lit));
+  }
+
+  // Draws a single literal, colored per its truth value: green if satisfied,
+  // red if falsified, orange if undefined (used by the clause detail panel).
+  void draw_lit_by_truth(const SentinelState* state, Tlit lit)
+  {
+    draw_lit_impl(state, lit, color_for_lit_truth(state, lit));
   }
 
   // ImVec2 has no operator+ unless IMGUI_DEFINE_MATH_OPERATORS is defined.
@@ -1122,7 +1146,7 @@ void SentinelGUI::render_clause_detail(Tclause cl)
   ImGui::TextUnformatted("Literals:");
   for (unsigned k = 0; k < n_active_lits; k++) {
     ImGui::Bullet();
-    draw_lit(_state, lits[k]);
+    draw_lit_by_truth(_state, lits[k]);
     ImGui::SameLine();
     ImGui::TextDisabled("(level %s)", _state->level(lits[k]).to_string().c_str());
   }
@@ -1131,7 +1155,7 @@ void SentinelGUI::render_clause_detail(Tclause cl)
     ImGui::TextUnformatted("Removed (shrunk) literals:");
     for (unsigned k = n_active_lits; k < lits.size(); k++) {
       ImGui::Bullet();
-      draw_lit(_state, lits[k]);
+      draw_lit_by_truth(_state, lits[k]);
     }
   }
 
@@ -1143,12 +1167,12 @@ void SentinelGUI::render_clause_detail(Tclause cl)
       ImGui::Bullet();
       ImGui::Text("watched=");
       ImGui::SameLine();
-      draw_lit(_state, watches[i].first);
+      draw_lit_by_truth(_state, watches[i].first);
       if (watches[i].second.value != 0) {
         ImGui::SameLine();
         ImGui::Text(" blocker=");
         ImGui::SameLine();
-        draw_lit(_state, watches[i].second);
+        draw_lit_by_truth(_state, watches[i].second);
       }
     }
   }

@@ -115,6 +115,18 @@ namespace sentinel
     bool check_assignment_coherence = false;
 
     /**
+     * @brief If true, the sentinel will check that the current assignment (the set of trail
+     * literals, π) has not already occurred earlier in this execution, i.e. that the search has
+     * not cycled back to a previously visited state.
+     * @details Let Π be the set of assignments already observed by this check. The invariant
+     * holds iff π ∉ Π. π is compared as a set (independent of trail order); it is then recorded
+     * into Π regardless of the outcome, so the next occurrence of the same π is caught too.
+     * @note Invariant Cost: O(|π| log |π|) to sort the trail, plus O(|π| log |Π|) to look it up
+     * against, and insert it into, the previously observed states.
+     */
+    bool check_repetition = false;
+
+    /**
      * @brief If true, the sentinel will check that the weak watched literal with blocker invariant holds
      * Invariant 1 of [Lazy Reimplication in Chronological Backtracking, 2024, Coutelier et al.]
      * @details For each clause C ∈ F with |C| > 2, watched by c₁ and c₂, and with a blocker b for c₁, the following property must hold:

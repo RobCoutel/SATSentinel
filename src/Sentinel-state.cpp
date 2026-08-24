@@ -291,6 +291,11 @@ void SentinelState::register_invariants()
       return this->check_assignment_coherence(err_msg);
     }));
   }
+  if (_options->check_repetition) {
+    _invariants.push_back(new Invariant("Repetition", [this](std::string& err_msg) {
+      return this->check_repetition(err_msg);
+    }));
+  }
 
   if (_options->check_weak_watched_literals) {
     _watch_invariants.push_back(new WatchInvariant("Weak Watched Literals", [this](Tlit c1, Tlit c2, Tlit blocker, std::string& err_msg) {

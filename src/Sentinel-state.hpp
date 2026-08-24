@@ -133,6 +133,14 @@ public:
   bool check_topological_order(std::string &err_msg) const;
   bool check_assignment_coherence(std::string &err_msg) const;
 
+  /**
+   * @brief Checks that the current set of trail literals (π) has not already been observed by
+   * an earlier call to check_repetition() in this execution, then records it either way.
+   * @return false if this set of trail literals was already recorded (a repeated state), true
+   * otherwise.
+   */
+  bool check_repetition(std::string &err_msg) const;
+
   bool weak_watched_literals(Tlit c1, Tlit c2, Tlit blocker) const;
   bool strong_watched_literals(Tlit c1, Tlit c2, Tlit blocker) const;
 
@@ -199,6 +207,11 @@ public:
   std::vector<variable> _variables;
   clause_set _clauses;
   std::vector<Tlit> _trail;
+
+  // Assignments (trail literals, sorted, order-independent) already observed by
+  // check_repetition(). Mutable: check_repetition() is logically a query (like every other
+  // invariant), but it also records the state it just checked.
+  mutable std::set<std::vector<Tlit>> _seen_states;
 
   const Options* _options;
 

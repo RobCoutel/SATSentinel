@@ -678,6 +678,78 @@ TEST_CASE("check_trail_monotonicity detects a level decrease within the trail", 
     delete_sentinel(s);
 }
 
+TEST_CASE("check_repetition passes the first time an assignment is seen", "[api]")
+{
+    Options opts;
+    opts.check_repetition = true;
+    SATSentinel* s = make_sentinel(&opts);
+    add_vars(s, {1, 2});
+    assign(s, Tlit{Tvar{1}, 1});
+    assign(s, Tlit{Tvar{2}, 1});
+
+    REQUIRE(check_invariants(s));
+    delete_sentinel(s);
+}
+
+TEST_CASE("check_repetition fails when the same assignment recurs", "[api]")
+{
+    Options opts;
+    opts.check_repetition = true;
+    SATSentinel* s = make_sentinel(&opts);
+    add_vars(s, {1, 2});
+    assign(s, Tlit{Tvar{1}, 1});
+    assign(s, Tlit{Tvar{2}, 1});
+
+    REQUIRE(check_invariants(s));
+
+    // Undo and redo the exact same assignments: the trail literal set is identical.
+    unassign(s, Tlit{Tvar{2}, 1});
+    unassign(s, Tlit{Tvar{1}, 1});
+    assign(s, Tlit{Tvar{1}, 1});
+    assign(s, Tlit{Tvar{2}, 1});
+
+    REQUIRE_FALSE(check_invariants(s));
+    delete_sentinel(s);
+}
+
+TEST_CASE("check_repetition is insensitive to trail order", "[api]")
+{
+    Options opts;
+    opts.check_repetition = true;
+    SATSentinel* s = make_sentinel(&opts);
+    add_vars(s, {1, 2});
+    assign(s, Tlit{Tvar{1}, 1});
+    assign(s, Tlit{Tvar{2}, 1});
+
+    REQUIRE(check_invariants(s));
+
+    unassign(s, Tlit{Tvar{2}, 1});
+    unassign(s, Tlit{Tvar{1}, 1});
+    assign(s, Tlit{Tvar{2}, 1});  // same two literals, opposite assignment order
+    assign(s, Tlit{Tvar{1}, 1});
+
+    REQUIRE_FALSE(check_invariants(s));
+    delete_sentinel(s);
+}
+
+TEST_CASE("check_repetition distinguishes assignments differing by one literal", "[api]")
+{
+    Options opts;
+    opts.check_repetition = true;
+    SATSentinel* s = make_sentinel(&opts);
+    add_vars(s, {1, 2});
+    assign(s, Tlit{Tvar{1}, 1});
+
+    REQUIRE(check_invariants(s));
+
+    assign(s, Tlit{Tvar{2}, 1});
+    REQUIRE(check_invariants(s));   // {1, 2} is a new state, distinct from {1}
+
+    unassign(s, Tlit{Tvar{2}, 1});
+    REQUIRE_FALSE(check_invariants(s));  // back to {1}, already seen
+    delete_sentinel(s);
+}
+
 TEST_CASE("message notification is a no-op on all state fields", "[api]")
 {
     SATSentinel* s = make_sentinel();
