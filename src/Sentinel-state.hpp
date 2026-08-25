@@ -155,7 +155,7 @@ public:
   /** PRINTING **/
   std::string to_string(Tlit lit) const;
   std::string to_string(Tvar var) const;
-  std::string to_string(Tclause cl) const;
+  std::string to_string(Tclause cl, bool show_blocker = false) const;
 
   struct variable
   {

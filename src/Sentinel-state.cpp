@@ -190,7 +190,7 @@ std::string SentinelState::to_string(Tvar var) const
   return s;
 }
 
-std::string SentinelState::to_string(Tclause cl) const
+std::string SentinelState::to_string(Tclause cl, bool show_blocker) const
 {
   if (cl.value >= _clauses.size()) {
     return "C" + std::to_string(cl.value) + " (undefined)";
@@ -214,23 +214,23 @@ std::string SentinelState::to_string(Tclause cl) const
     Tlit lit = c.literals[i];
     if (lit_true(lit)) {
       satisfied_lits += to_string(lit);
-      if (lit == c1 && b1 != LIT_UNDEF)
+      if (show_blocker && lit == c1 && b1 != LIT_UNDEF)
         satisfied_lits += "(" + to_string(b1) + ")";
-      else if (lit == c2 && b2 != LIT_UNDEF)
+      else if (show_blocker && lit == c2 && b2 != LIT_UNDEF)
         satisfied_lits += "(" + to_string(b2) + ")";
       satisfied_lits += " ";
     } else if (lit_undef(lit)) {
       undefined_lits += to_string(lit);
-      if (lit == c1 && b1 != LIT_UNDEF)
+      if (show_blocker && lit == c1 && b1 != LIT_UNDEF)
         undefined_lits += "(" + to_string(b1) + ")";
-      else if (lit == c2 && b2 != LIT_UNDEF)
+      else if (show_blocker && lit == c2 && b2 != LIT_UNDEF)
         undefined_lits += "(" + to_string(b2) + ")";
       undefined_lits += " ";
     } else {
       falsified_lits += to_string(lit);
-      if (lit == c1 && b1 != LIT_UNDEF)
+      if (show_blocker && lit == c1 && b1 != LIT_UNDEF)
         falsified_lits += "(" + to_string(b1) + ")";
-      else if (lit == c2 && b2 != LIT_UNDEF)
+      else if (show_blocker && lit == c2 && b2 != LIT_UNDEF)
         falsified_lits += "(" + to_string(b2) + ")";
       falsified_lits += " ";
     }

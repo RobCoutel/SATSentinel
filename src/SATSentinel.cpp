@@ -216,7 +216,7 @@ void SATSentinel::print_clauses() const
         ellipsed_clauses = 0;
       }
 
-      std::string clause_str = state->to_string(cl);
+      std::string clause_str = state->to_string(cl, true);
       max_clause_str_length = std::max(max_clause_str_length, string_length_escaped(clause_str));
       clauses_str.push_back(clause_str);
     }
@@ -240,7 +240,7 @@ void SATSentinel::print_clauses() const
         }
       }
 
-      std::string clause_str = state->to_string(Tclause(end));
+      std::string clause_str = state->to_string(Tclause(end), true);
       unsigned clause_str_length = string_length_escaped(clause_str);
       if (clause_str_length > max_clause_str_length)
         break;
