@@ -169,6 +169,7 @@ namespace sentinel
     var = state->_variables[v.value];
     state->value(v) = VAL_UNDEF;
     state->reason(v) = CLAUSE_UNDEF;
+    state->level(v) = LEVEL_UNDEF;
     state->propagated(v) = false;
     state->decrement_level_counter(var.level);
 
