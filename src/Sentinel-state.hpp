@@ -21,6 +21,7 @@
 #include <vector>
 #include <string>
 #include <set>
+#include <map>
 #include <functional>
 
 namespace sentinel
@@ -122,7 +123,7 @@ public:
   void increment_level_counter(Tlevel level);
 
   /** INVARIANTS **/
-  bool check_invariants(std::string &err_msg, bool check_watch_literals = true) const;
+  bool check_invariants(std::string &err_msg, bool check_watch_literals = true, unsigned notification_index = 0) const;
 
   bool check_watched_literals(std::string &err_msg) const;
 
@@ -136,10 +137,12 @@ public:
   /**
    * @brief Checks that the current set of trail literals (π) has not already been observed by
    * an earlier call to check_repetition() in this execution, then records it either way.
+   * @param notification_index The notification index to record against this assignment, so that
+   * a later repetition can report when it was last observed.
    * @return false if this set of trail literals was already recorded (a repeated state), true
    * otherwise.
    */
-  bool check_repetition(std::string &err_msg) const;
+  bool check_repetition(std::string &err_msg, unsigned notification_index = 0) const;
 
   bool weak_watched_literals(Tlit c1, Tlit c2, Tlit blocker) const;
   bool strong_watched_literals(Tlit c1, Tlit c2, Tlit blocker) const;
@@ -209,9 +212,15 @@ public:
   std::vector<Tlit> _trail;
 
   // Assignments (trail literals, sorted, order-independent) already observed by
-  // check_repetition(). Mutable: check_repetition() is logically a query (like every other
-  // invariant), but it also records the state it just checked.
-  mutable std::set<std::vector<Tlit>> _seen_states;
+  // check_repetition(), mapped to the notification index at which they were last observed.
+  // Mutable: check_repetition() is logically a query (like every other invariant), but it also
+  // records the state it just checked.
+  mutable std::map<std::vector<Tlit>, unsigned> _seen_states;
+
+  // Notification index passed to the current check_invariants() call, used by the Repetition
+  // invariant (registered as a no-argument lambda) to report where a repeated state was last
+  // observed.
+  mutable unsigned _current_notification_index = 0;
 
   const Options* _options;
 

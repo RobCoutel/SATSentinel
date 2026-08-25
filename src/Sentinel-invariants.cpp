@@ -28,7 +28,7 @@ namespace sentinel {
 bool SATSentinel::check_invariants() const
 {
   std::string err_msg;
-  bool success = state->check_invariants(err_msg);
+  bool success = state->check_invariants(err_msg, true, current_notification_index);
   if (!success) {
     LOG_ERROR("Invariant check failed:\n" << err_msg);
   }
@@ -45,8 +45,9 @@ void SATSentinel::add_watch_invariant(WatchInvariant* invariant)
   state->add_watch_invariant(invariant);
 }
 
-bool SentinelState::check_invariants(string &err_msg, bool check_watch) const
+bool SentinelState::check_invariants(string &err_msg, bool check_watch, unsigned notification_index) const
 {
+  _current_notification_index = notification_index;
   bool success = true;
   for (const Invariant* invariant : _invariants) {
     if (!invariant->check()) {
@@ -318,14 +319,21 @@ bool SentinelState::check_assignment_coherence(std::string& err_msg) const
   return success;
 }
 
-bool SentinelState::check_repetition(std::string &err_msg) const
+bool SentinelState::check_repetition(std::string &err_msg, unsigned notification_index) const
 {
   const string error_header = ERROR_HEAD + "Invariant violation (repetition): ";
   vector<Tlit> sorted_trail(_trail.begin(), _trail.end());
   sort(sorted_trail.begin(), sorted_trail.end());
-  bool success = _seen_states.insert(std::move(sorted_trail)).second;
+  auto it = _seen_states.find(sorted_trail);
+  bool success = (it == _seen_states.end());
   if (!success) {
-    err_msg += error_header + "the current assignment has already been observed earlier in this execution.\n";
+    if (it->second == notification_index)
+      return true;
+    err_msg += error_header + "the current assignment has already been observed, last at notification "
+              + std::to_string(it->second) + ".\n";
+    it->second = notification_index;
+  } else {
+    _seen_states.emplace(std::move(sorted_trail), notification_index);
   }
   return success;
 }

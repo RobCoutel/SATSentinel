@@ -293,7 +293,7 @@ void SentinelState::register_invariants()
   }
   if (_options->check_repetition) {
     _invariants.push_back(new Invariant("Repetition", [this](std::string& err_msg) {
-      return this->check_repetition(err_msg);
+      return this->check_repetition(err_msg, this->_current_notification_index);
     }));
   }
 
