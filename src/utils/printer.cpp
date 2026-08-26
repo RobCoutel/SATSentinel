@@ -24,12 +24,16 @@ using namespace std;
 
 #ifdef __unix__
 #include <sys/ioctl.h> //ioctl() and TIOCGWINSZ
-#include <sys/wait.h> // waitpid(), for run_addr2line()
-#include <unistd.h> // for STDOUT_FILENO, fork(), pipe(), ...
-#include <fcntl.h> // open(), for run_addr2line()'s /dev/null redirect
+#include <sys/wait.h> // waitpid(), for run_addr2line_batch()
+#include <unistd.h> // for STDOUT_FILENO, pipe(), ...
+#include <fcntl.h> // open(), for run_addr2line_batch()'s /dev/null redirect
+#include <spawn.h> // posix_spawnp(), for run_addr2line_batch()
 #include <execinfo.h> // backtrace()/backtrace_symbols()
 #include <dlfcn.h> // dladdr()
 #include <cxxabi.h> // abi::__cxa_demangle()
+#include <map>
+
+extern char** environ;
 #endif
 #ifdef _WIN32
 #include <windows.h>
@@ -243,39 +247,76 @@ std::string justify_string(const std::string& str, unsigned width, char fill, co
 #if defined(__unix__) && !defined(NDEBUG)
 namespace
 {
-  // Runs `addr2line -f -C -e <module> <addr>` with no shell involved (execlp(), not
-  // system()/popen(), so a module path or address never gets shell-interpreted) and returns
-  // its file:line line of output, or "" if it can't be resolved (no DWARF line info - i.e. a
-  // release build - the tool is missing, or the address doesn't map to a known line).
-  string run_addr2line(const string& module, uintptr_t rel_addr)
+  // Resolves a whole batch of addresses within a single module in one `addr2line -f -C -e
+  // <module> <addr>...` invocation, with no shell involved (posix_spawnp(), not system()/popen(),
+  // so the module path or an address never gets shell-interpreted).
+  //
+  // This exists instead of one addr2line call per address for two reasons, both of which matter
+  // once this runs inside a real solver process rather than a small test binary:
+  //  - addr2line reloads and re-parses the module's entire DWARF line-number program from scratch
+  //    on every invocation. A depth-N backtrace calling it N times pays that parse cost N times
+  //    instead of once; batching collapses it to one call per distinct module (almost always a
+  //    single call, since all frames of interest are normally in the same executable).
+  //  - spawning is done via posix_spawnp(), not fork(). Plain fork() duplicates the caller's page
+  //    tables, which costs time proportional to the size of the process's address space; for a
+  //    solver holding a multi-GB clause database, doing that repeatedly (once per frame) is both
+  //    slow and prone to tripping the kernel's memory-overcommit accounting - observed in practice
+  //    as sporadic crashes/OOM kills, not just slowness. posix_spawnp() avoids that page-table copy.
+  //
+  // Returns one file:line string per address in rel_addrs, in the same order ("" for any address
+  // that couldn't be resolved - no DWARF line info, i.e. a release build; the tool missing; or an
+  // address with no matching line).
+  vector<string> run_addr2line_batch(const string& module, const vector<uintptr_t>& rel_addrs)
   {
-    char addr_buf[2 + sizeof(uintptr_t) * 2 + 1]; // "0x" + hex digits + '\0'
-    snprintf(addr_buf, sizeof(addr_buf), "0x%lx", (unsigned long)rel_addr);
+    vector<string> results(rel_addrs.size());
+    if (rel_addrs.empty())
+      return results;
+
+    vector<string> addr_strs(rel_addrs.size());
+    for (size_t i = 0; i < rel_addrs.size(); i++) {
+      char buf[2 + sizeof(uintptr_t) * 2 + 1]; // "0x" + hex digits + '\0'
+      snprintf(buf, sizeof(buf), "0x%lx", (unsigned long)rel_addrs[i]);
+      addr_strs[i] = buf;
+    }
 
     int out_pipe[2];
     if (pipe(out_pipe) != 0)
-      return "";
+      return results;
+    int devnull = open("/dev/null", O_WRONLY);
 
-    pid_t pid = fork();
-    if (pid < 0) {
-      close(out_pipe[0]);
-      close(out_pipe[1]);
-      return "";
-    }
-    if (pid == 0) {
-      close(out_pipe[0]);
-      dup2(out_pipe[1], STDOUT_FILENO);
-      int devnull = open("/dev/null", O_WRONLY);
-      if (devnull >= 0)
-        dup2(devnull, STDERR_FILENO);
-      close(out_pipe[1]);
-      execlp("addr2line", "addr2line", "-f", "-C", "-e", module.c_str(), addr_buf, (char*)nullptr);
-      _exit(127); // exec failed (addr2line not installed, ...)
-    }
+    posix_spawn_file_actions_t actions;
+    posix_spawn_file_actions_init(&actions);
+    posix_spawn_file_actions_adddup2(&actions, out_pipe[1], STDOUT_FILENO);
+    if (devnull >= 0)
+      posix_spawn_file_actions_adddup2(&actions, devnull, STDERR_FILENO);
+    posix_spawn_file_actions_addclose(&actions, out_pipe[0]);
+    posix_spawn_file_actions_addclose(&actions, out_pipe[1]);
+    if (devnull >= 0)
+      posix_spawn_file_actions_addclose(&actions, devnull);
+
+    vector<char*> argv;
+    argv.push_back((char*)"addr2line");
+    argv.push_back((char*)"-f");
+    argv.push_back((char*)"-C");
+    argv.push_back((char*)"-e");
+    argv.push_back((char*)module.c_str());
+    for (auto& s : addr_strs)
+      argv.push_back((char*)s.c_str());
+    argv.push_back(nullptr);
+
+    pid_t pid = 0;
+    int rc = posix_spawnp(&pid, "addr2line", &actions, nullptr, argv.data(), environ);
+    posix_spawn_file_actions_destroy(&actions);
     close(out_pipe[1]);
+    if (devnull >= 0)
+      close(devnull);
+    if (rc != 0) {
+      close(out_pipe[0]);
+      return results;
+    }
 
     string output;
-    char buf[512];
+    char buf[4096];
     ssize_t n;
     while ((n = read(out_pipe[0], buf, sizeof(buf))) > 0)
       output.append(buf, (size_t)n);
@@ -283,20 +324,22 @@ namespace
     int status = 0;
     waitpid(pid, &status, 0);
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
-      return "";
+      return results;
 
-    // Output is two lines: the (demangled) function name, then "file:line". We already have
-    // the function name via dladdr()/__cxa_demangle() above, so only the second line matters.
-    size_t nl = output.find('\n');
-    if (nl == string::npos)
-      return "";
-    string file_line = output.substr(nl + 1);
-    size_t nl2 = file_line.find('\n');
-    if (nl2 != string::npos)
-      file_line = file_line.substr(0, nl2);
-    if (file_line.empty() || file_line.compare(0, 2, "??") == 0)
-      return "";
-    return file_line;
+    // Output is two lines per address: the (demangled) function name (unused - we already have
+    // it via dladdr()/__cxa_demangle() above), then "file:line", in the same order as argv.
+    size_t pos = 0;
+    for (size_t i = 0; i < rel_addrs.size(); i++) {
+      size_t nl1 = output.find('\n', pos);
+      if (nl1 == string::npos)
+        break;
+      size_t nl2 = output.find('\n', nl1 + 1);
+      string file_line = (nl2 == string::npos) ? output.substr(nl1 + 1) : output.substr(nl1 + 1, nl2 - nl1 - 1);
+      if (!file_line.empty() && file_line.compare(0, 2, "??") != 0)
+        results[i] = file_line;
+      pos = (nl2 == string::npos) ? output.size() : nl2 + 1;
+    }
+    return results;
   }
 }
 #endif
@@ -309,9 +352,16 @@ std::string capture_backtrace(unsigned max_frames, unsigned skip_frames)
   int n_frames = backtrace(frames.data(), (int)frames.size());
   int first = std::min((int)(skip_frames + 1), n_frames);
 
-  string result;
+  std::vector<string> lines(n_frames > first ? n_frames - first : 0);
+  // Per-line index -> relative address still needing " at file:line", grouped by module so each
+  // module needs only one addr2line invocation for the whole backtrace (see run_addr2line_batch).
+#ifndef NDEBUG
+  std::map<string, std::vector<std::pair<uintptr_t, size_t>>> pending_by_module;
+#endif
+
   for (int i = first; i < n_frames; i++) {
     void* addr = frames[i];
+    size_t line_idx = i - first;
     Dl_info info{};
     bool have_info = dladdr(addr, &info) != 0 && info.dli_fname != nullptr;
 
@@ -332,7 +382,7 @@ std::string capture_backtrace(unsigned max_frames, unsigned skip_frames)
       }
     }
 
-    result += "#" + to_string(i - first) + " " + module + "(" + func + ") [" + [&] {
+    lines[line_idx] = "#" + to_string(line_idx) + " " + module + "(" + func + ") [" + [&] {
       char addr_buf[2 + sizeof(uintptr_t) * 2 + 1];
       snprintf(addr_buf, sizeof(addr_buf), "0x%lx", (unsigned long)(uintptr_t)addr);
       return string(addr_buf);
@@ -343,13 +393,26 @@ std::string capture_backtrace(unsigned max_frames, unsigned skip_frames)
 #ifndef NDEBUG
     if (have_info) {
       uintptr_t rel_addr = (uintptr_t)addr - (uintptr_t)info.dli_fbase;
-      string loc = run_addr2line(module, rel_addr);
-      if (!loc.empty())
-        result += " at " + loc;
+      pending_by_module[module].push_back({rel_addr, line_idx});
     }
 #endif
-    result += "\n";
   }
+
+#ifndef NDEBUG
+  for (const auto& [module, entries] : pending_by_module) {
+    std::vector<uintptr_t> addrs(entries.size());
+    for (size_t k = 0; k < entries.size(); k++)
+      addrs[k] = entries[k].first;
+    std::vector<string> locs = run_addr2line_batch(module, addrs);
+    for (size_t k = 0; k < entries.size(); k++)
+      if (!locs[k].empty())
+        lines[entries[k].second] += " at " + locs[k];
+  }
+#endif
+
+  string result;
+  for (auto& line : lines)
+    result += line + "\n";
   return result;
 #else
   return "";
