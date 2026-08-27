@@ -14,6 +14,7 @@
 #include "SentinelGUI.hpp"
 
 #include "Sentinel-state.hpp"
+#include "Sentinel-notifications.hpp"
 #include "SATSentinel.hpp" // for SentinelMarker's definition
 #include "utils/printer.hpp"
 
@@ -38,7 +39,7 @@ namespace
   const ImVec4 COLOR_BLUE(0.25f, 0.55f, 0.95f, 1.0f);
   const ImVec4 COLOR_GRAY(0.60f, 0.60f, 0.60f, 1.0f);
 
-  // Colors cycled through by successive left clicks on an implication-graph
+  // Colors cycled through by successive right clicks on an implication-graph
   // node; index 0 is the first click's color.
   const ImVec4 GRAPH_HIGHLIGHT_COLORS[] = { COLOR_RED, COLOR_ORANGE, COLOR_BLUE };
   const int GRAPH_HIGHLIGHT_COLOR_COUNT = (int)(sizeof(GRAPH_HIGHLIGHT_COLORS) / sizeof(GRAPH_HIGHLIGHT_COLORS[0]));
@@ -227,6 +228,9 @@ namespace
 SentinelGUI::SentinelGUI(const SentinelState* state, const SentinelMarker* markers, Options* options, const unsigned* display_level,
                           const std::function<std::string(Tvar)>* variable_detail_callback,
                           const std::function<std::string(Tclause)>* clause_detail_callback,
+                          const std::vector<notif::notification*>* notifications,
+                          const unsigned* current_notification_index,
+                          const std::set<size_t>* breakpoints,
                           std::function<bool()> is_real_time) :
   _state(state),
   _markers(markers),
@@ -234,6 +238,9 @@ SentinelGUI::SentinelGUI(const SentinelState* state, const SentinelMarker* marke
   _display_level(display_level),
   _variable_detail_callback(variable_detail_callback),
   _clause_detail_callback(clause_detail_callback),
+  _notifications(notifications),
+  _current_notification_index(current_notification_index),
+  _breakpoints(breakpoints),
   _is_real_time(is_real_time)
 {
   glfwSetErrorCallback([](int error, const char* description) {
@@ -928,15 +935,15 @@ void SentinelGUI::render_implication_graph_panel()
     ImGui::PushID((int)var.value);
     ImGui::InvisibleButton("node", ImVec2(node_size, node_size));
     if (ImGui::IsItemClicked(ImGuiMouseButton_Left)) {
+      clicked_var = var;
+      open_var_detail = true;
+    }
+    if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) {
       int next_step = highlighted ? highlight_it->second + 1 : 0;
       if (next_step >= GRAPH_HIGHLIGHT_COLOR_COUNT)
         _graph_highlighted_vars.erase(var.value);
       else
         _graph_highlighted_vars[var.value] = next_step;
-    }
-    if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) {
-      clicked_var = var;
-      open_var_detail = true;
     }
     if (ImGui::IsItemHovered())
       ImGui::SetTooltip("%s   reason: %s", label.c_str(),
@@ -1243,7 +1250,21 @@ void SentinelGUI::render_command_panel()
   render_ansi_text(_status_header);
   ImGui::Separator();
 
-  ImGui::TextUnformatted("Log:");
+  if (ImGui::RadioButton("Notifications", _command_panel_view == CommandPanelView::NOTIFICATIONS))
+    _command_panel_view = CommandPanelView::NOTIFICATIONS;
+  ImGui::SameLine();
+  if (ImGui::RadioButton("Log", _command_panel_view == CommandPanelView::LOG))
+    _command_panel_view = CommandPanelView::LOG;
+  ImGui::Separator();
+
+  if (_command_panel_view == CommandPanelView::NOTIFICATIONS)
+    render_notifications_panel();
+  else
+    render_log_panel();
+}
+
+void SentinelGUI::render_log_panel()
+{
   ImGui::BeginChild("command_log", ImVec2(0, -ImGui::GetFrameHeightWithSpacing()), true);
   for (unsigned i = 0; i < _log.size(); i++) {
     const LogEntry& entry = _log[i];
@@ -1273,6 +1294,96 @@ void SentinelGUI::render_command_panel()
   if (_scroll_log_to_bottom) {
     ImGui::SetScrollHereY(1.0f);
     _scroll_log_to_bottom = false;
+  }
+  ImGui::EndChild();
+}
+
+void SentinelGUI::render_notifications_panel()
+{
+  size_t count = _notifications->size();
+  unsigned current_idx = *_current_notification_index;
+
+  // current_idx only moves via "next"/"back"/"goto" (all of which re-enter this panel
+  // through pump_until_command()'s frame loop), never spontaneously mid-scroll - so
+  // comparing it to the last-seen value here is enough to tell "the current row just
+  // changed" apart from "the user is manually scrolling the list".
+  if (current_idx != _notif_last_seen_index) {
+    _scroll_notifications_to_current = true;
+    _notif_last_seen_index = current_idx;
+  }
+
+  ImGui::BeginChild("notifications_list", ImVec2(0, -ImGui::GetFrameHeightWithSpacing()), true);
+
+  if (count == 0) {
+    ImGui::TextDisabled("No notifications yet.");
+    ImGui::EndChild();
+    return;
+  }
+
+  const float row_h = ImGui::GetTextLineHeightWithSpacing();
+  const float gutter_w = row_h;
+  const float bp_radius = row_h * 0.28f;
+  ImDrawList* draw_list = ImGui::GetWindowDrawList();
+  const ImVec4 default_text_color = ImGui::GetStyleColorVec4(ImGuiCol_Text);
+
+  // Scroll straight to the current row's position, computed from its index rather than
+  // relying on ImGuiListClipper to visit it: the clipper only ever submits rows already
+  // near the current scroll offset, so a row far outside the current viewport (e.g. right
+  // after "goto" jumps across a large chunk of history) would otherwise never be walked by
+  // the loop below, and a SetScrollHereY() call gated on "is this the current row" would
+  // simply never run.
+  if (_scroll_notifications_to_current && current_idx >= 1 && current_idx <= count) {
+    float target_y = (float)(current_idx - 1) * row_h - ImGui::GetWindowHeight() * 0.5f + row_h * 0.5f;
+    ImGui::SetScrollY(std::max(target_y, 0.0f));
+    _scroll_notifications_to_current = false;
+  }
+
+  // The list can hold millions of rows (one per solver-level event, not just the ones
+  // that were ever displayed), so it must stay clipped - only visible rows are ever
+  // submitted to ImGui. Rows are forced to a fixed height (row_h, passed to both
+  // clipper.Begin() and the Selectable() below) rather than left to size themselves
+  // from wrapped text, since the clipper requires uniform row heights to stay correct.
+  ImGuiListClipper clipper;
+  clipper.Begin((int)count, row_h);
+  while (clipper.Step()) {
+    for (int row = clipper.DisplayStart; row < clipper.DisplayEnd; row++) {
+      size_t idx1 = (size_t)row + 1; // 1-based, matching current_notification_index/breakpoints
+      bool is_current = (idx1 == current_idx);
+      bool is_breakpoint = _breakpoints->find(idx1) != _breakpoints->end();
+
+      ImGui::PushID(row);
+
+      // Gutter: click toggles a breakpoint at this notification, VSCode-style (a filled
+      // red dot marks a set breakpoint; a faint ring previews where a click would add one).
+      bool gutter_clicked = ImGui::InvisibleButton("##gutter", ImVec2(gutter_w, row_h));
+      bool gutter_hovered = ImGui::IsItemHovered();
+      ImVec2 gmin = ImGui::GetItemRectMin();
+      ImVec2 gmax = ImGui::GetItemRectMax();
+      ImVec2 gcenter((gmin.x + gmax.x) * 0.5f, (gmin.y + gmax.y) * 0.5f);
+      if (is_breakpoint)
+        draw_list->AddCircleFilled(gcenter, bp_radius, ImGui::GetColorU32(COLOR_RED));
+      else if (gutter_hovered)
+        draw_list->AddCircle(gcenter, bp_radius, ImGui::GetColorU32(ImVec4(0.85f, 0.3f, 0.3f, 0.6f)));
+
+      // Row: clicking anywhere else on it plays the sentinel forward/backward until
+      // exactly this notification (the "goto" navigation command). The current
+      // notification is picked out by color (blue) rather than a separate marker glyph,
+      // every other row stays in the plain (default) text color.
+      ImGui::SameLine(0.0f, 0.0f);
+      bool row_clicked = ImGui::Selectable("##row", is_current, 0, ImVec2(0, row_h));
+      ImGui::SameLine(0.0f, 0.0f);
+      std::string text = std::to_string(idx1) + ": " + (*_notifications)[(size_t)row]->get_message();
+      ImGui::PushStyleColor(ImGuiCol_Text, is_current ? COLOR_BLUE : default_text_color);
+      ImGui::TextUnformatted(text.c_str());
+      ImGui::PopStyleColor();
+
+      if (gutter_clicked)
+        submit_nav((is_breakpoint ? "remove breakpoint " : "set breakpoint ") + std::to_string(idx1));
+      else if (row_clicked)
+        submit_nav("goto " + std::to_string(idx1));
+
+      ImGui::PopID();
+    }
   }
   ImGui::EndChild();
 }
@@ -1347,7 +1458,7 @@ void SentinelGUI::render_detail_panel()
 {
   if (_detail_kind == DetailKind::VARIABLE) {
     if (_selected_var < 0)
-      ImGui::TextDisabled("Click a variable (or right-click a graph node) to inspect it here.");
+      ImGui::TextDisabled("Click a variable (or left-click a graph node) to inspect it here.");
     else
       render_variable_detail(Tvar((unsigned)_selected_var));
   } else {

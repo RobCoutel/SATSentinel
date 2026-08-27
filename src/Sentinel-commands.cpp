@@ -163,6 +163,25 @@ void sentinel::SATSentinel::register_commands() {
     }));
   navigation_commands.add_alias("back", "b");
 
+  navigation_commands.add_command(CommandInteger(
+    "goto",
+    "Jump directly to a specific (1-based) notification index, bypassing display level and "
+    "breakpoints - used by the GUI's notifications panel to play the sentinel until a clicked "
+    "notification.",
+    [this](int index) {
+      if (index < 0) {
+        std::cout << "Invalid notification index (positive integer expected)" << std::endl;
+        return false;
+      }
+      goto_notification((size_t)index);
+      // Same reasoning as "back": goto_notification() may leave the sentinel off the top
+      // of the notification stack, so control must re-enter the navigation prompt rather
+      // than being released back to the (possibly out-of-sync) caller.
+      if (!_options->check_only)
+        get_navigation_commands();
+      return true;
+    }));
+
   navigation_commands.add_command(Command(
     "quit",
     "Quit the sentinel",

@@ -134,6 +134,19 @@ namespace sentinel
      */
     bool back();
 
+    /**
+     * @brief Jump directly to a specific notification index, applying or rolling back
+     * every notification in between as needed, regardless of display level or
+     * breakpoints. Used by the GUI's notifications panel ("goto" navigation command) to
+     * play the sentinel forward/backward until the notification the user clicked on.
+     * @param target_index The 1-based notification index to land on (i.e. the value
+     * current_notification_index will have afterwards), matching the numbering already
+     * used by "Notification N: ..." headers and the breakpoints set. Clamped to
+     * notifications.size() if out of range.
+     * @return false if any notification along the way failed to apply/rollback.
+     */
+    bool goto_notification(size_t target_index);
+
     std::string last_notification_message() const;
 
     bool is_real_time() const;

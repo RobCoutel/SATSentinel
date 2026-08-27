@@ -50,6 +50,7 @@ SATSentinel::SATSentinel(Options* options)
   if (_options->gui) {
     gui_view = new SentinelGUI(state, markers, _options, &display_level,
                                 &_variable_detail_callback, &_clause_detail_callback,
+                                &notifications, &current_notification_index, &breakpoints,
                                 [this]() { return is_real_time(); });
     if (!gui_view->is_valid()) {
       std::cout << WARNING_HEAD << "Failed to initialize the GUI (no display / GLFW init failure?); falling back to the terminal frontend." << std::endl;
@@ -151,6 +152,35 @@ bool SATSentinel::back()
   // while the sentinel is not on top of the notification stack.
   if (!_options->check_only) {
     get_navigation_commands();
+  }
+  return success;
+}
+
+bool SATSentinel::goto_notification(size_t target_index)
+{
+  if (target_index > notifications.size())
+    target_index = notifications.size();
+
+  bool success = true;
+  while (current_notification_index < target_index) {
+    notif::notification* notif = notifications[current_notification_index++];
+    if (!notif->apply(state)) {
+      success = false;
+      failed = true;
+      LOG_ERROR("Notification failed: " << notif->get_message());
+      if (_options->crash_on_error) {
+        LOG_ERROR("Crashing due to error...");
+        abort();
+      }
+    }
+  }
+  while (current_notification_index > target_index) {
+    notif::notification* notif = notifications[--current_notification_index];
+    if (!notif->rollback(state)) {
+      success = false;
+      failed = true;
+      std::cerr << "Notification rollback failed: " << notif->get_message() << std::endl;
+    }
   }
   return success;
 }

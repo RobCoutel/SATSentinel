@@ -24,6 +24,7 @@
 #include <imgui.h>
 
 #include <functional>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -36,6 +37,8 @@ namespace sentinel
 {
   class SentinelState;
   class SentinelMarker;
+
+  namespace notif { class notification; }
 
   /**
    * @brief Read-only GUI view over a SentinelState, driven by the same command
@@ -82,6 +85,18 @@ namespace sentinel
      * registered a callback.
      * @param clause_detail_callback Same as variable_detail_callback, but for
      * clauses (see set_clause_detail_callback()).
+     * @param notifications Read-only pointer to SATSentinel's full notification history
+     * (every notification ever sent, in order - not just the ones that were displayed).
+     * Indices into this vector are 0-based, but the GUI displays/refers to them 1-based
+     * (matching current_notification_index and the breakpoints set, both of which count
+     * "notifications applied so far").
+     * @param current_notification_index Read-only pointer to SATSentinel's live (private)
+     * current_notification_index - the 1-based count of notifications applied to the
+     * replayed state so far. Used to highlight the current row in the notifications panel.
+     * @param breakpoints Read-only pointer to SATSentinel's live breakpoint set (1-based
+     * notification indices, see the "set breakpoint"/"remove breakpoint" navigation
+     * commands). Used to draw a VSCode-style breakpoint dot in the notifications panel's
+     * gutter.
      * @param is_real_time Predicate reporting whether the sentinel is currently
      * at the head of the notification history (as opposed to having stepped
      * backward via "back"). The callback reflects live host-application state,
@@ -90,6 +105,9 @@ namespace sentinel
     SentinelGUI(const SentinelState* state, const SentinelMarker* markers, Options* options, const unsigned* display_level,
                 const std::function<std::string(Tvar)>* variable_detail_callback,
                 const std::function<std::string(Tclause)>* clause_detail_callback,
+                const std::vector<notif::notification*>* notifications,
+                const unsigned* current_notification_index,
+                const std::set<size_t>* breakpoints,
                 std::function<bool()> is_real_time);
     ~SentinelGUI();
 
@@ -134,6 +152,8 @@ namespace sentinel
     void render_variables_panel();
     void render_clauses_panel();
     void render_command_panel();
+    void render_notifications_panel();
+    void render_log_panel();
     void render_options_panel();
 
     void render_variable_detail(Tvar var);
@@ -159,6 +179,9 @@ namespace sentinel
     const unsigned* _display_level;
     const std::function<std::string(Tvar)>* _variable_detail_callback;
     const std::function<std::string(Tclause)>* _clause_detail_callback;
+    const std::vector<notif::notification*>* _notifications;
+    const unsigned* _current_notification_index;
+    const std::set<size_t>* _breakpoints;
     std::function<bool()> _is_real_time;
 
     GLFWwindow* _window = nullptr;
@@ -209,7 +232,7 @@ namespace sentinel
     // view can snap back to the end of the trail (see render_trail_panel()).
     size_t _trail_last_size = (size_t)-1;
 
-    // Vars whose implication-graph node color has been cycled by a left click
+    // Vars whose implication-graph node color has been cycled by a right click
     // (red -> orange -> blue -> back to normal). Value is the cycle step
     // (1 = red, 2 = orange, 3 = blue); absent means not highlighted.
     // Purely a display toggle (not persisted state); cleared whenever a new
@@ -239,6 +262,19 @@ namespace sentinel
     struct LogEntry { std::string text; bool success; };
     std::vector<LogEntry> _log;
     bool _scroll_log_to_bottom = false;
+
+    // command panel: toggles the bottom of the Commands panel between the raw
+    // Log (every command the user typed/clicked, cfr. _log above) and the
+    // Notifications panel (every notification the sentinel has replayed,
+    // cfr. render_notifications_panel()). Notifications is the default view.
+    enum class CommandPanelView { NOTIFICATIONS, LOG };
+    CommandPanelView _command_panel_view = CommandPanelView::NOTIFICATIONS;
+    // Tracks *_current_notification_index across frames so the notifications
+    // list only auto-scrolls to the current row right after it actually moves
+    // (e.g. via "next"/"back"/clicking a row), not on every frame - that would
+    // fight the user's own manual scrolling.
+    unsigned _notif_last_seen_index = (unsigned)-1;
+    bool _scroll_notifications_to_current = true;
 
     // options panel
     int _display_level_input = -1; // -1 means "not yet synced to the live value"
