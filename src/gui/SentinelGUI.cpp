@@ -825,8 +825,7 @@ void SentinelGUI::render_implication_graph_panel()
       continue;
 
     const std::vector<Tlit>& lits = _state->literals(reason);
-    unsigned n_deleted = _state->_clauses[reason].n_deleted_literals;
-    unsigned n_active = (unsigned)lits.size() - n_deleted;
+    unsigned n_active = _state->n_active_literals(reason);
     ImVec2 to = vadd(vadd(origin, node_pos[var.value]), ImVec2(node_size / 2.0f, node_size / 2.0f));
 
     for (unsigned k = 0; k < n_active; k++) {
@@ -1146,8 +1145,8 @@ void SentinelGUI::render_clause_detail(Tclause cl)
     _state->clause_satisfied(cl) ? "yes" : "no");
 
   const std::vector<Tlit>& lits = _state->literals(cl);
-  unsigned n_deleted = _state->_clauses[cl].n_deleted_literals;
-  unsigned n_active_lits = (unsigned)lits.size() - n_deleted;
+  unsigned n_active_lits = _state->n_active_literals(cl);
+  unsigned n_deleted = (unsigned)lits.size() - n_active_lits;
 
   ImGui::Separator();
   ImGui::TextUnformatted("Literals:");

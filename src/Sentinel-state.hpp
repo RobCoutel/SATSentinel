@@ -18,6 +18,7 @@
 
 #include "Sentinel-invariants.hpp"
 
+#include <algorithm>
 #include <vector>
 #include <string>
 #include <set>
@@ -116,6 +117,16 @@ public:
   inline const std::vector<Tlit>& literals(Tclause cl) const { return _clauses[cl.value].literals; }
   inline       std::vector<std::pair<Tlit, Tlit>>& watches(Tclause cl)       { return _clauses[cl.value].watches; }
   inline const std::vector<std::pair<Tlit, Tlit>>& watches(Tclause cl) const { return _clauses[cl.value].watches; }
+
+  // Number of literals in cl that have not been marked as (shrunk-away) deleted, i.e. the
+  // length of the "active" prefix of literals(cl). Clamped defensively: n_deleted_literals
+  // should never exceed literals.size(), but if that invariant is ever violated by a bug
+  // elsewhere, callers indexing literals(cl) up to this count must not walk off the vector.
+  inline unsigned n_active_literals(Tclause cl) const {
+    const clause& c = _clauses[cl.value];
+    unsigned n_deleted = std::min(c.n_deleted_literals, (unsigned)c.literals.size());
+    return (unsigned)c.literals.size() - n_deleted;
+  }
 
   inline Tlevel level() const { return _level_counters.size() - 1; }
 

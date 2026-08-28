@@ -210,7 +210,8 @@ std::string SentinelState::to_string(Tclause cl, bool show_blocker) const
   Tlit b1 = c.watches.size() > 0 ? c.watches[0].second : LIT_UNDEF;
   Tlit b2 = c.watches.size() > 1 ? c.watches[1].second : LIT_UNDEF;
 
-  for (unsigned i = 0; i < c.literals.size() - c.n_deleted_literals; i++) {
+  unsigned n_active = n_active_literals(cl);
+  for (unsigned i = 0; i < n_active; i++) {
     Tlit lit = c.literals[i];
     if (lit_true(lit)) {
       satisfied_lits += to_string(lit);
@@ -248,9 +249,9 @@ std::string SentinelState::to_string(Tclause cl, bool show_blocker) const
 
 
   s += satisfied_lits + undefined_lits + falsified_lits;
-  if (c.n_deleted_literals > 0) {
+  if (n_active < c.literals.size()) {
     s += "| ";
-    for (unsigned i = c.literals.size() - c.n_deleted_literals; i < c.literals.size(); i++) {
+    for (unsigned i = n_active; i < c.literals.size(); i++) {
       Tlit lit = c.literals[i];
       s += to_string(lit) + " ";
     }

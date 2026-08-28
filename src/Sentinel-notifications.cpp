@@ -371,6 +371,7 @@ namespace sentinel
     }
     SOFT_ASSERT(!state->_clauses[cl.value].active);
     state->_clauses[cl.value].literals = lits;
+    state->_clauses[cl.value].n_deleted_literals = 0;
     state->_clauses[cl.value].active = true;
     state->_clauses[cl.value].external = external;
     return true;
@@ -384,6 +385,7 @@ namespace sentinel
     state->_clauses[cl.value].active = false;
     state->_clauses[cl.value].external = false;
     state->_clauses[cl.value].literals.clear();
+    state->_clauses[cl.value].n_deleted_literals = 0;
     return true;
   }
 
