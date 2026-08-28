@@ -370,6 +370,10 @@ namespace sentinel
       state->_clauses.resize(cl.value + 1);
     }
     SOFT_ASSERT(!state->_clauses[cl.value].active);
+    for (const Tlit& l : lits) {
+      SOFT_ASSERT(l.var().value < state->_variables.size());
+      SOFT_ASSERT(state->active(l.var()));
+    }
     state->_clauses[cl.value].literals = lits;
     state->_clauses[cl.value].n_deleted_literals = 0;
     state->_clauses[cl.value].active = true;

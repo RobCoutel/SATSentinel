@@ -1174,7 +1174,7 @@ void SentinelGUI::render_clause_detail(Tclause cl)
       ImGui::Text("watched=");
       ImGui::SameLine();
       draw_lit_by_truth(_state, watches[i].first);
-      if (watches[i].second.value != 0) {
+      if (watches[i].second != LIT_UNDEF) {
         ImGui::SameLine();
         ImGui::Text(" blocker=");
         ImGui::SameLine();
