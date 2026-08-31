@@ -118,7 +118,9 @@ namespace sentinel
       state->increment_level_counter(state->level(var));
     } else {
       Tlevel reason_level = 0;
-      for (const auto& lit : state->literals(reason)) {
+      const SentinelState::clause& reason_clause = state->_clauses[reason.value];
+      for (size_t i = 0; i < reason_clause.literals.size() - reason_clause.n_deleted_literals; i++) {
+        Tlit lit = reason_clause.literals[i];
         if (lit.var() == var) {
           continue;
         }
