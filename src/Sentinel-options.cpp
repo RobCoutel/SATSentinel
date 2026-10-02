@@ -51,6 +51,12 @@ namespace sentinel
                  "positional load-file argument.")
       .alias("-save-file")
       .alias("--save");
+    p.add_string("--save-latex", t.save_latex_file,
+                 "Directory/file-prefix used by the \"save\" navigation command. Each time \"save\" "
+                 "is entered, it writes the LaTeX rendering of the clauses and of the trail to "
+                 "\"<prefix>-clauses-<i>\" and \"<prefix>-trail-<i>\", where <i> counts the "
+                 "\"save\" commands already issued this session (starting at 0).")
+      .alias("-save-latex");
 
     p.set_category("INVARIANT CHECKS");
     p.add_bool("--check-no-conflicts", t.check_no_conflicts,
@@ -63,7 +69,7 @@ namespace sentinel
                "Check that the trail is monotonic with respect to decision levels.");
     p.add_bool("--check-topological-order", t.check_topological_order,
                "Check that the trail is a topological sort of the implication graph.");
-    p.add_bool("--check-assignment-coherence", t.check_assignment_coherence,
+    p.add_bool("--check-assignment-coherence", t.check_correct_implications,
                "Check that the reasons of implied literals are correct.");
     p.add_bool("--check-repetition", t.check_repetition,
                "Check that the current assignment has not already occurred earlier in this "
@@ -72,6 +78,8 @@ namespace sentinel
                "Check the weak watched-literal-with-blocker invariant.");
     p.add_bool("--check-strong-watched-literals", t.check_strong_watched_literals,
                "Check the strong watched-literal-with-blocker invariant.");
+    p.add_bool("--check-backtrack-compatible-watched-literals", t.check_backtrack_compatible_watched_literals,
+                "Check the backtrack-compatible watched-literal invariant.");
   }
 
   Options::Options(vector<string>& tokens)

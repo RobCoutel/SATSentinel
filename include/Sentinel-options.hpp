@@ -69,7 +69,7 @@ namespace sentinel
      * @brief If true, the sentinel will check for the sanity of the trail. That is, it will check that no clause is falsified by the trail.
      * @details For each clause C ∈ F, check if
      *   |C \ {¬ℓ : ℓ ∈ τ}| > 0
-     * @note Invariant Cost: O(|F| * |C|) where |F| is the number of clauses and |C| is the size of the largest clause.
+     * @note Invariant Cost: O(|F| * |C|) where |F| is the number of clauses and |C| is the average size of clauses.
      */
     bool check_no_conflicts = false;
 
@@ -77,9 +77,18 @@ namespace sentinel
      * @brief If true, the sentinel will check that there is not clause C such that only one literal is C is undefined, and the others are falsified.
      * @details For each clause C ∈ F, check if
      *   |C \ {¬ℓ : ℓ ∈ τ}| = 1 ⇒ C ∩ π ≠ ∅
-     * @note Invariant Cost: O(|F| * |C|) where |F| is the number of clauses and |C| is the size of the largest clause.
+     * @note Invariant Cost: O(|F| * |C|) where |F| is the number of clauses and |C| is the average size of clauses.
      */
     bool check_no_missed_implications = false;
+
+    /**
+     * @brief If true, the sentinel will check that there is no missed lower implication.
+     * @details A missed lower implication is a clause C implying a literal ℓ such that δ(ℓ) < max{δ(ℓ') : ℓ' ∈ ρ(ℓ) \ {ℓ}}.
+     * We therefore check
+     *   C \ {¬ℓ' : ℓ' ∈ τ} = {ℓ} ⇒ δ(ℓ) ≤ max{δ(ℓ') : ℓ' ∈ C \ {ℓ}}
+     * @note Invariant Cost: O(|F| * |C|) where |F| is the number of clauses and |C| is the average size of clauses.
+     */
+    bool check_no_missed_lower_implications = false;
 
     /**
      * @brief If true, the sentinel will check that literals are implied at the correct decision level.
@@ -112,7 +121,7 @@ namespace sentinel
      * ∀ ℓ ∈ π. ρ(ℓ) ≠ ■ ⇒ [(ρ(ℓ) \ {ℓ} ∧ π ⊧ ⊥) ∧ (ℓ ∈ ρ(ℓ))]
      * @note Invariant Cost: O(|π| * |C|) where |π| is the number of literals on the trail and |C| is the size of the largest clause.
      */
-    bool check_assignment_coherence = false;
+    bool check_correct_implications = false;
 
     /**
      * @brief If true, the sentinel will check that the current assignment (the set of trail
@@ -131,7 +140,10 @@ namespace sentinel
      * Invariant 1 of [Lazy Reimplication in Chronological Backtracking, 2024, Coutelier et al.]
      * @details For each clause C ∈ F with |C| > 2, watched by c₁ and c₂, and with a blocker b for c₁, the following property must hold:
      *   ¬c₁ ∈ τ ⇒ (¬c₂ ∉ τ ∨ b ∈ π)
+     * Ensuring this invariant is sufficient to guarantee conflict detection completeness,
+     * i.e. that the solver will never miss a conflict after full propagation.
      * @note Invariant Cost: O(|F|) where |F| is the number of clauses.
+     * @note This invariant makes check_no_conflicts redundant.
      */
     bool check_weak_watched_literals = false;
 
@@ -140,9 +152,24 @@ namespace sentinel
      * Invariant 3 of [Lazy Reimplication in Chronological Backtracking, 2024, Coutelier et al.]
      * @details For each clause C ∈ F with |C| > 2, watched by c₁ and c₂, and with a blocker b for c₁, the following property must hold:
      *   ¬c₁ ∈ τ ⇒ (c₂ ∈ π ∨ b ∈ π)
+     * Ensuring this invariant is sufficient to guarantee conflict detection and propagation completeness,
+     * i.e. that the solver will never miss a conflict or an implication after full propagation.
      * @note Invariant Cost: O(|F|) where |F| is the number of clauses.
+     * @note This invariant makes check_no_missed_implications redundant.
      */
     bool check_strong_watched_literals = false;
+
+    /**
+     * @brief If true, the sentinel will check that the backtrack-compatible watched literal invariant holds
+     * Invariant 6 of [Lazy Reimplication in Chronological Backtracking, 2024, Coutelier et al.]
+     * @details For each clause C ∈ F with |C| > 2, watched by c₁ and c₂, and with a blocker b for c₁, the following property must hold:
+     *  ¬c₁ ∈ τ ⇒ [(c₂ ∈ π ∨ δ(c₂) ≤ δ(c₁)) ∨ (b ∈ π ∨ δ(b) ≤ δ(c₁))]
+     * Ensuring this invariant is sufficient to guarantee conflict detection and propagation completeness (see check_strong_watched_literals).
+     * Further, it guarantees the absence of missed lower implications
+     * @note Invariant Cost: O(|F|) where |F| is the number of clauses.
+     * @note This invariant makes check_no_missed_lower_implications redundant.
+     */
+    bool check_backtrack_compatible_watched_literals = false;
 
     /**
      * @brief In interractive mode, the sentinel will read the commands in the given file. When a checkpoint is reached, the sentinel will first take the commands from that file before asking the user for input.
@@ -156,6 +183,15 @@ namespace sentinel
      * passing it as the positional load-file argument to the sentinel executable.
      */
     std::string save_file = "";
+
+    /**
+     * @brief If non-empty, used as the directory/file-prefix that the "save" navigation command
+     * writes LaTeX renderings to. Each time "save" is entered, it creates two new files,
+     * "<save_latex_file>-clauses-<i>" and "<save_latex_file>-trail-<i>", holding the LaTeX
+     * rendering of the clauses and of the trail at that point, where <i> is the number of times
+     * "save" has already been used in this session (starting at 0).
+     */
+    std::string save_latex_file = "";
 
     Options() = default;
 

@@ -146,6 +146,43 @@ bool SentinelState::check_no_missed_implications(string &err_msg) const
   return success;
 }
 
+bool SentinelState::check_no_missed_lower_implications(string &err_msg) const
+{
+  const string error_header = ERROR_HEAD + "Invariant violation (no missed lower implications): ";
+  bool success = true;
+  for (Tclause cl = 0; cl.value < _clauses.size(); cl++) {
+    clause c = _clauses[cl.value];
+    if (!c.active)
+      continue;
+
+    Tlit satisfied_lit = LIT_UNDEF;
+    Tlevel satisfied_level = LEVEL_UNDEF;
+    Tlevel max_falsified_level = LEVEL_ROOT;
+    for (Tlit lit : c.literals) {
+      if (!propagated(lit))
+        goto next_clause;
+      if (lit_true(lit)) {
+        if (satisfied_lit != LIT_UNDEF)
+          goto next_clause;
+        satisfied_lit = lit;
+        satisfied_level = level(lit);
+      }
+      if (lit_false(lit)) {
+        max_falsified_level = std::max(max_falsified_level, level(lit));
+      }
+      if (max_falsified_level > satisfied_level) {
+        goto next_clause;
+      }
+    }
+    if (satisfied_lit != LIT_UNDEF && max_falsified_level < satisfied_level) {
+      success = false;
+      err_msg += error_header + "clause " + to_string(cl) + " is a missed lower implication: " + to_string(satisfied_lit) + " is satisfied at level " + satisfied_level.to_string() + ", but the maximum level of the falsified literals is " + max_falsified_level.to_string() + ".\n";
+    }
+    next_clause:;
+  }
+  return success;
+}
+
 bool SentinelState::check_topological_order(string &err_msg) const
 {
   const string error_header = ERROR_HEAD + "Invariant violation (topological order): ";
@@ -233,10 +270,14 @@ bool SentinelState::check_watched_literals(string &err_msg) const
         if (!invariant->check(lit, other, blocker)) {
           success = false;
           last_failed = true;
-          err_msg += ERROR_HEAD + "Invariant violation (" + invariant->name + "): " + invariant->geterr_msg() + "\n";
+          err_msg += ERROR_HEAD + "Invariant violation (" + invariant->name + "): ";
+          if (!invariant->math_description.empty()) {
+            err_msg += invariant->math_description;
+          }
+          err_msg += "\n";
+          err_msg += invariant->geterr_msg();
         }
       }
-
 
       if (last_failed) {
         err_msg += ERROR_HEAD + "clause " + to_string(cl) + " does not satisfy the invariant.\n";
@@ -270,7 +311,16 @@ bool SentinelState::strong_watched_literals(Tlit c1, Tlit c2, Tlit blocker) cons
   return success;
 }
 
-bool SentinelState::check_assignment_coherence(std::string& err_msg) const
+bool SentinelState::backtrack_compatible_watched_literals(Tlit c1, Tlit c2, Tlit blocker) const
+{
+  // ¬c₁ ∈ τ ⇒ [(c₂ ∈ π ∨ δ(c₂) ≤ δ(c₁)) ∨ (b ∈ π ∨ δ(b) ≤ δ(c₁))]
+  bool success  = !propagated(c1) || !lit_false(c1);
+       success |= lit_true(c2) && level(c2) <= level(c1);
+       success |= lit_true(blocker) && level(blocker) <= level(c1);
+  return success;
+}
+
+bool SentinelState::check_correct_implications(std::string& err_msg) const
 {
   const string error_header = ERROR_HEAD + "Invariant violation (assignment coherence): ";
   bool success = true;

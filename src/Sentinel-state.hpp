@@ -142,8 +142,9 @@ public:
   bool check_implied_levels(std::string &err_msg) const;
   bool check_trail_monotonicity(std::string &err_msg) const;
   bool check_no_missed_implications(std::string &err_msg) const;
+  bool check_no_missed_lower_implications(std::string& err_msg) const;
   bool check_topological_order(std::string &err_msg) const;
-  bool check_assignment_coherence(std::string &err_msg) const;
+  bool check_correct_implications(std::string &err_msg) const;
 
   /**
    * @brief Checks that the current set of trail literals (π) has not already been observed by
@@ -157,6 +158,8 @@ public:
 
   bool weak_watched_literals(Tlit c1, Tlit c2, Tlit blocker) const;
   bool strong_watched_literals(Tlit c1, Tlit c2, Tlit blocker) const;
+  bool backtrack_compatible_watched_literals(Tlit c1, Tlit c2, Tlit blocker) const;
+
 
   std::vector<Invariant*> _invariants;
   void add_invariant(Invariant* invariant) { _invariants.push_back(invariant); }
@@ -167,6 +170,15 @@ public:
   std::string to_string(Tlit lit) const;
   std::string to_string(Tvar var) const;
   std::string to_string(Tclause cl, bool show_blocker = false) const;
+  std::string to_latex(Tlit lit) const;
+  std::string to_latex(Tclause cl) const;
+  std::string literal_to_aligned_latex(Tlit lit, bool watched) const;
+  std::string clause_to_aligned_latex(Tclause cl) const;
+
+  std::string trail_to_latex() const;
+  std::string clause_set_to_latex() const;
+  std::string used_clauses_to_latex() const;
+  std::string implication_graph_to_latex() const;
 
   struct variable
   {

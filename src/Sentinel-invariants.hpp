@@ -19,6 +19,7 @@
 #include <vector>
 #include <string>
 #include <functional>
+#include <iostream>
 
 namespace sentinel
 {
@@ -41,7 +42,7 @@ struct Invariant {
   }
 
   bool check() const {
-    return invariant_checker( error_message);
+    return invariant_checker(error_message);
   }
 };
 
@@ -50,14 +51,17 @@ struct WatchInvariant {
   std::function<bool(Tlit, Tlit, Tlit, std::string& err_msg)> watch_literal_invariant;
   mutable std::string error_message;
   const std::string description;
+  const std::string math_description;
 
 public:
   WatchInvariant(const std::string name,
                  std::function<bool(Tlit, Tlit, Tlit, std::string&)> checker,
-                 const std::string& description = "") :
+                 const std::string& description = "",
+                 const std::string& math_description = "") :
     name(name),
     watch_literal_invariant(checker),
-    description(description) {}
+    description(description),
+    math_description(math_description) {}
 
 
   bool check(Tlit c1, Tlit c2, Tlit blocker) const {

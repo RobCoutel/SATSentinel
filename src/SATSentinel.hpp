@@ -112,6 +112,10 @@ namespace sentinel
     unsigned display_level = 0;
     bool failed = false;
 
+    // Number of times the "save" navigation command has been issued this session. Used to
+    // suffix the files written by save_latex() so repeated saves never overwrite each other.
+    unsigned save_latex_count = 0;
+
     // Optional user-supplied callback providing extra, application-specific
     // metadata about a variable (e.g. SMT-level details). Displayed by the
     // GUI's variable-detail popup; only meaningful in real time (see
@@ -159,6 +163,15 @@ namespace sentinel
     void print_clauses() const;
     void print_variables() const;
     void print_trail() const;
+    void print_trail_latex() const;
+    void print_implication_graph_latex() const;
+    void print_clauses_latex() const;
+
+    // Writes the LaTeX rendering of the clauses and of the trail to
+    // "<save_latex_file>-clauses-<save_latex_count>" and "<save_latex_file>-trail-<save_latex_count>",
+    // then increments save_latex_count. No-op (with a warning) if --save-latex was not given.
+    void save_latex();
+
 
     // Prints the C++ stack trace of the host process at the current notification. Only
     // meaningful when is_real_time(): the sentinel is then still blocked inside the notify()

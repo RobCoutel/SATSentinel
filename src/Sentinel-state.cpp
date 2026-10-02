@@ -115,150 +115,6 @@ void SentinelState::increment_level_counter(Tlevel level)
   _level_counters[level.value]++;
 }
 
-
-std::string SentinelState::to_string(Tlit lit) const
-{
-  std::string s = "";
-  Tvar var = lit.var();
-
-  // styling
-  if (lit_undef(lit))
-    s += ORANGE;
-  else if (lit_true(lit))
-    s += GREEN;
-  else
-    s += RED;
-
-  if (propagated(lit))
-    s += UNDERLINE;
-
-  // the literal
-  if (alias(lit).empty())
-    s += lit.to_string();
-  else
-    s += alias(lit);
-  if (locked(var))
-    s += "🔒";
-
-  // reset the style
-  s += RESET;
-  return s;
-}
-
-std::string SentinelState::to_string(Tvar var) const
-{
-  std::string s = "";
-  s += var.to_string() + ": ";
-  s += pad(var.value, _variables.size());
-  if (propagated(var))
-    s += " (p)";
-  else
-    s += " (u)";
-  if (!alias(var).empty())
-    s += alias(var) + ": ";
-  else
-    s += var.to_string() + " ";
-  if (active(var)) {
-    if (value(var) == VAL_UNDEF) {
-      s += ORANGE;
-      s += "undef";
-      s += RESET;
-    } else if (value(var) == VAL_TRUE) {
-      s += GREEN;
-      s += "true";
-      s += RESET;
-    } else if (value(var) == VAL_FALSE) {
-      s += RED;
-      s += "false";
-      s += RESET;
-    } else
-      s += "error";
-    s += " @ ";
-    s += level(var).to_string();
-    s += " by ";
-    if (decision(var))
-      s += "decision";
-    else if (reason(var) == CLAUSE_UNDEF)
-      s += "undef";
-    else if (lazy(var))
-      s += "lazy";
-    else
-      s += reason(var).to_string();
-  }
-  else
-    s += "deleted";
-  return s;
-}
-
-std::string SentinelState::to_string(Tclause cl, bool show_blocker) const
-{
-  if (cl.value >= _clauses.size()) {
-    return "C" + std::to_string(cl.value) + " (undefined)";
-  }
-  const clause& c = _clauses[cl];
-
-  if (!c.active) {
-    return "C" + std::to_string(cl.value) + " (inactive)";
-  }
-
-  std::string satisfied_lits = "";
-  std::string undefined_lits = "";
-  std::string falsified_lits = "";
-
-  Tlit c1 = c.watches.size() > 0 ? c.watches[0].first : LIT_UNDEF;
-  Tlit c2 = c.watches.size() > 1 ? c.watches[1].first : LIT_UNDEF;
-  Tlit b1 = c.watches.size() > 0 ? c.watches[0].second : LIT_UNDEF;
-  Tlit b2 = c.watches.size() > 1 ? c.watches[1].second : LIT_UNDEF;
-
-  unsigned n_active = n_active_literals(cl);
-  for (unsigned i = 0; i < n_active; i++) {
-    Tlit lit = c.literals[i];
-    if (lit_true(lit)) {
-      satisfied_lits += to_string(lit);
-      if (show_blocker && lit == c1 && b1 != LIT_UNDEF)
-        satisfied_lits += "(" + to_string(b1) + ")";
-      else if (show_blocker && lit == c2 && b2 != LIT_UNDEF)
-        satisfied_lits += "(" + to_string(b2) + ")";
-      satisfied_lits += " ";
-    } else if (lit_undef(lit)) {
-      undefined_lits += to_string(lit);
-      if (show_blocker && lit == c1 && b1 != LIT_UNDEF)
-        undefined_lits += "(" + to_string(b1) + ")";
-      else if (show_blocker && lit == c2 && b2 != LIT_UNDEF)
-        undefined_lits += "(" + to_string(b2) + ")";
-      undefined_lits += " ";
-    } else {
-      falsified_lits += to_string(lit);
-      if (show_blocker && lit == c1 && b1 != LIT_UNDEF)
-        falsified_lits += "(" + to_string(b1) + ")";
-      else if (show_blocker && lit == c2 && b2 != LIT_UNDEF)
-        falsified_lits += "(" + to_string(b2) + ")";
-      falsified_lits += " ";
-    }
-  }
-
-  std::string s = "";
-  if (!satisfied_lits.empty()) {
-    s += GREEN;
-  } else if (!undefined_lits.empty()) {
-    s += ORANGE;
-  } else {
-    s += RED;
-  }
-  s += cl.to_string() + RESET + ": ";
-
-
-  s += satisfied_lits + undefined_lits + falsified_lits;
-  if (n_active < c.literals.size()) {
-    s += "| ";
-    for (unsigned i = n_active; i < c.literals.size(); i++) {
-      Tlit lit = c.literals[i];
-      s += to_string(lit) + " ";
-    }
-  }
-  return s;
-}
-
 void SentinelState::register_invariants()
 {
 
@@ -282,14 +138,19 @@ void SentinelState::register_invariants()
       return this->check_no_missed_implications(err_msg);
     }));
   }
+  if (_options->check_no_missed_lower_implications) {
+    _invariants.push_back(new Invariant("No Missed Lower Implications", [this](std::string& err_msg) {
+      return this->check_no_missed_lower_implications(err_msg);
+    }));
+  }
   if (_options->check_topological_order) {
     _invariants.push_back(new Invariant("Topological Order", [this](std::string& err_msg) {
       return this->check_topological_order(err_msg);
     }));
   }
-  if (_options->check_assignment_coherence) {
+  if (_options->check_correct_implications) {
     _invariants.push_back(new Invariant("Assignment Coherence", [this](std::string& err_msg) {
-      return this->check_assignment_coherence(err_msg);
+      return this->check_correct_implications(err_msg);
     }));
   }
   if (_options->check_repetition) {
@@ -301,12 +162,20 @@ void SentinelState::register_invariants()
   if (_options->check_weak_watched_literals) {
     _watch_invariants.push_back(new WatchInvariant("Weak Watched Literals", [this](Tlit c1, Tlit c2, Tlit blocker, std::string& err_msg) {
       return this->weak_watched_literals(c1, c2, blocker);
-    }));
+    }, "This invariant checks the conflict completeness of the watched literals",
+       "¬c₁ ∈ τ ⇒ (¬c₂ ∉ τ ∨ b ∈ π)"));
   }
   if (_options->check_strong_watched_literals) {
     _watch_invariants.push_back(new WatchInvariant("Strong Watched Literals", [this](Tlit c1, Tlit c2, Tlit blocker, std::string& err_msg) {
       return this->strong_watched_literals(c1, c2, blocker);
-    }));
+    }, "This invariant checks the propagation completeness of the watched literals",
+        "¬c₁ ∈ τ ⇒ (c₂ ∈ π ∨ b ∈ π)"));
+  }
+  if (_options->check_backtrack_compatible_watched_literals) {
+    _watch_invariants.push_back(new WatchInvariant("Backtrack-Compatible Watched Literals", [this](Tlit c1, Tlit c2, Tlit blocker, std::string& err_msg) {
+      return this->backtrack_compatible_watched_literals(c1, c2, blocker);
+    }, "This invariant checks that backtracking will maintain the strong watched literal property",
+     "¬c₁ ∈ τ ⇒ [(c₂ ∈ π ∧ δ(c₂) ≤ δ(c₁)) ∨ (b ∈ π ∧ δ(b) ≤ δ(c₁))]"));
   }
 }
 }

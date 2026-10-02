@@ -137,7 +137,7 @@ TEST_CASE("all built-in invariant flags can be enabled simultaneously", "[api]")
     opts.check_implied_levels          = true;
     opts.check_trail_monotonicity      = true;
     opts.check_topological_order       = true;
-    opts.check_assignment_coherence    = true;
+    opts.check_correct_implications    = true;
     opts.check_weak_watched_literals   = true;
     opts.check_strong_watched_literals = true;
 

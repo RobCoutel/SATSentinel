@@ -192,6 +192,42 @@ void sentinel::SATSentinel::register_commands() {
     }));
   navigation_commands.add_alias("quit", "q");
 
+  // Registered before "print" so its "print " prefix match does not shadow these.
+  navigation_commands.add_command(Command(
+    "print trail latex",
+    "Print a LaTeX/TikZ rendering of the trail (and any conflicting clauses) as a sequence of "
+    "assignment blocks grouped by decision level.",
+    [this](const std::string& args) {
+      print_trail_latex();
+      return true;
+    }, false));
+
+  navigation_commands.add_command(Command(
+    "print graph latex",
+    "Print a LaTeX/TikZ rendering of the implication graph at the current notification.",
+    [this](const std::string& args) {
+      print_implication_graph_latex();
+      return true;
+    }, false));
+
+  navigation_commands.add_command(Command(
+    "print clauses latex",
+    "Print a LaTeX rendering of the clauses at the current notification.",
+    [this](const std::string& args) {
+      print_clauses_latex();
+      return true;
+    }, false));
+
+  navigation_commands.add_command(Command(
+    "save",
+    "If --save-latex <prefix> was given, save the LaTeX rendering of the clauses and of the "
+    "trail at the current notification to \"<prefix>-clauses-<i>\" and \"<prefix>-trail-<i>\", "
+    "where <i> counts the \"save\" commands already issued this session (starting at 0).",
+    [this](const std::string& args) {
+      save_latex();
+      return true;
+    }, false));
+
   navigation_commands.add_command(Command(
     "print",
     "Print the current state of the solver",
