@@ -77,20 +77,23 @@ endif
 BUILD_FLAGS := GUI=$(GUI) REL_FLAGS=$(REL_FLAGS) CFLAGS=$(CFLAGS)
 FLAGS_FILE := $(BUILD_DIR)/.build-flags
 
+BUILD_DIRS := $(sort $(BUILD_DIR) $(patsubst %/,%,$(dir $(OBJS) $(MAIN_OBJ) $(TEST_OBJS) $(FLAGS_FILE))))
+
+$(BUILD_DIRS):
+	$(MKDIR_P) $@
+
 # c source
-$(BUILD_DIR)/%.o: %.cpp $(HEAD) $(FLAGS_FILE)
-	$(MKDIR_P) $(dir $@)
+$(BUILD_DIR)/%.o: %.cpp $(HEAD) $(FLAGS_FILE) | $(BUILD_DIRS)
 	$(CC) -c $< -o $@ $(REL_FLAGS) $(CFLAGS)
 
-$(FLAGS_FILE): FORCE
-	@$(MKDIR_P) $(dir $@)
+$(FLAGS_FILE): FORCE | $(BUILD_DIR)
 	@echo '$(BUILD_FLAGS)' | cmp -s - $@ || echo '$(BUILD_FLAGS)' > $@
 
 .PHONY: FORCE
 FORCE:
 
 # release
-$(BUILD_DIR)/$(EXEC): $(OBJS) $(MAIN_OBJ)
+$(BUILD_DIR)/$(EXEC): $(OBJS) $(MAIN_OBJ) | $(BUILD_DIR)
 	$(CC) $^ -o $@ $(CFLAGS) $(REL_FLAGS) $(LINK_FLAGS)
 
 # library
@@ -98,13 +101,13 @@ $(BUILD_DIR)/$(EXEC): $(OBJS) $(MAIN_OBJ)
 # for the objects listed in $^; it never drops members that are no longer
 # part of the build (e.g. imgui/gui objects left over from a GUI=1 build),
 # which used to make GUI=0 builds silently link stale GUI code.
-$(BUILD_DIR)/$(TARGET_LIB): $(OBJS)
+$(BUILD_DIR)/$(TARGET_LIB): $(OBJS) | $(BUILD_DIR)
 	$(RM) $@
 	ar rcs $@ $^
 
 # tests
 tests: REL_FLAGS = $(DBG_FLAGS) $(TEST_LINK_FLAGS)
-tests: $(OBJS) $(TEST_OBJS)
+tests: $(OBJS) $(TEST_OBJS) | $(BUILD_DIR)
 	$(CC) -o $(BUILD_DIR)/SATSentinel-tests $(OBJS) $(TEST_OBJS) $(CFLAGS) $(DBG_FLAGS) $(LINK_FLAGS) $(TEST_LINK_FLAGS)
 
 .PHONY: debug

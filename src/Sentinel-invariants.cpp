@@ -324,7 +324,7 @@ bool SentinelState::check_correct_implications(std::string& err_msg) const
 {
   const string error_header = ERROR_HEAD + "Invariant violation (assignment coherence): ";
   bool success = true;
-  vector<bool> visited(_clauses.size(), false);
+  vector<bool> visited(variables_size(), false);
   for (Tlit lit : _trail) {
     if (visited[lit.var().value]) {
       success = false;
