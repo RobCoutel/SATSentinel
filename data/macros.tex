@@ -1,0 +1,51 @@
+\definecolor{Green}{rgb}{0.09, 0.45, 0.27}
+
+\newcommand{\blue}[1] {%
+	\protect\leavevmode%
+  \begingroup%
+	\color{blue}%
+    #1%
+	\endgroup%
+}
+\newcommand{\red}[1] {%
+	\protect\leavevmode%
+  \begingroup%
+	\color{red}%
+    #1%
+	\endgroup%
+}
+\newcommand{\green}[1] {%
+	\protect\leavevmode%
+  \begingroup%
+	\color{Green}%
+    #1%
+	\endgroup%
+}
+\newcommand{\gray}[1] {%
+	\protect\leavevmode%
+  \begingroup%
+	\color{Gray}%
+    #1%
+	\endgroup%
+}
+\newcommand{\orange}[1] {%
+	\protect\leavevmode%
+  \begingroup%
+	\color{orange!70!black}%
+    #1%
+	\endgroup%
+}
+
+\newcommand*{\trail}{\tau}     % propagated set
+\newcommand*{\q}{\omega}       % propagation queue
+\newcommand*{\p}{\pi}          % complete trail
+\newcommand*{\wl}{\mathrm{WL}} % watch lists
+\newcommand*{\reason}{\rho}    % reason
+\newcommand*{\level}{\delta}   % decision level
+
+\tikzstyle{vertex}=[draw,minimum size=24pt,inner sep=1pt]
+\tikzstyle{implied}=[circle]
+\tikzstyle{decision}=[rectangle]
+\tikzstyle{myarr}=[shorten >=1pt,->,>=stealth]
+\tikzstyle{marked}=[fill=blue!15]
+\tikzstyle{conflict}=[dashed, thick, draw=red]

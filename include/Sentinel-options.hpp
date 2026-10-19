@@ -132,6 +132,7 @@ namespace sentinel
      * into Π regardless of the outcome, so the next occurrence of the same π is caught too.
      * @note Invariant Cost: O(|π| log |π|) to sort the trail, plus O(|π| log |Π|) to look it up
      * against, and insert it into, the previously observed states.
+     * @warning This invariant is not very stable yet. Use at your own peril.
      */
     bool check_repetition = false;
 
